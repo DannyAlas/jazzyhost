@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from firebase_admin import auth, credentials, storage, initialize_app
 from google.cloud import firestore
 
@@ -42,6 +42,19 @@ app.add_middleware(
 )
 
 
+# if the user is not sending a request to the defined endpoints, reroute them to the IMAGES_ENPOINT
+@app.middleware("http")
+async def reroute(request: Request, call_next):
+    if request.url.path not in ["/", "/ui", "/ui/login", "/ping", "/upload", "/login"]:
+        return RedirectResponse(url=IMAGES_ENPOINT + request.url.path.strip("/"))
+    response = await call_next(request)
+    return response
+
+# on the root endpoint, return the ui if there is nothing after the slash
+@app.get("/")
+async def root(request: Request):
+    return RedirectResponse(url="/ui")
+
 @app.get("/ui", include_in_schema=False)
 async def root(request: Request):
     # return static html file
@@ -54,7 +67,7 @@ async def login(request: Request):
     if cookie is not None:
         try:
             auth.verify_session_cookie(cookie, check_revoked=True)
-            return HTMLResponse(content=open("./static/index.html", "r").read())
+            return RedirectResponse(url="/ui")
         except:
             pass
     return HTMLResponse(content=open("./static/login.html", "r").read())
@@ -104,14 +117,13 @@ async def validate(request: Request):
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
-        print(f"decoded_claims: {decoded_claims}")
         return JSONResponse(
-            content={"message": "Successfully logged in"}, status_code=200
+            content={"message": "healthy and logged in"}, status_code=200
         )
     except Exception as e:
         print(e)
         return HTTPException(
-            detail={"message": "There was an error logging in"}, status_code=400
+            detail={"message": "helathy but not logging in"}, status_code=400
         )
 
 
@@ -190,12 +202,13 @@ async def upload(request: Request):
 # delete file
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str, request: Request):
-    print(filename)
     try:
         cookie = request.cookies.get("session")
         auth.verify_session_cookie(cookie, check_revoked=True)
         blob = bucket.blob(filename)
         blob.delete()
+        db.collection("files").where("name", "==", filename).delete()
+
         return JSONResponse(
             content={"message": "Successfully deleted file"}, status_code=200
         )
@@ -215,8 +228,6 @@ async def get_all(request: Request):
         blobs = bucket.list_blobs()
         for blob in blobs:
             urls.append(f"{IMAGES_ENPOINT}{blob.name}")
-            print(blob.name)
-        print(urls)
         return JSONResponse(content={"urls": urls}, status_code=200)
     except:
         return HTTPException(detail={"message": "Not authorized"}, status_code=401)
