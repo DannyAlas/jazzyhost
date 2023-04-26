@@ -42,14 +42,6 @@ app.add_middleware(
 )
 
 
-# if the user is not sending a request to the defined endpoints, reroute them to the IMAGES_ENPOINT
-@app.middleware("http")
-async def reroute(request: Request, call_next):
-    if request.url.path not in ["/", "/ui", "/ui/login", "/ping", "/upload", "/login"]:
-        return RedirectResponse(url=IMAGES_ENPOINT + request.url.path.strip("/"))
-    response = await call_next(request)
-    return response
-
 # on the root endpoint, return the ui if there is nothing after the slash
 @app.get("/")
 async def root(request: Request):
