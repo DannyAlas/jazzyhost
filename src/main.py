@@ -50,7 +50,7 @@ async def root(request: Request):
 @app.get("/ui", include_in_schema=False)
 async def root(request: Request):
     # return static html file
-    return HTMLResponse(content=open("./static/index.html", "r").read())
+    return HTMLResponse(content=open("./src/static/index.html", "r").read())
 
 
 @app.get("/ui/login", include_in_schema=False)
@@ -62,7 +62,7 @@ async def login(request: Request):
             return RedirectResponse(url="/ui")
         except:
             pass
-    return HTMLResponse(content=open("./static/login.html", "r").read())
+    return HTMLResponse(content=open("./src/static/login.html", "r").read())
 
 
 @app.post("/login", include_in_schema=False)
