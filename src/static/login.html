@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+    <head>
+        <meta charset="utf-8">
+        <title>Drag and Drop File Uploading</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <!-- Bootstrap CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/5.0.0/css/bootstrap.min.css">
+    </head>
+
+    <div class="container mt-5" >
+        <form class="p-5 mt-5" >
+            <!-- Email input -->
+            <div class="form-outline mb-4">
+              <input type="email" id="email" class="form-control" />
+              <label class="form-label" for="email">Email address</label>
+            </div>
+          
+            <!-- Password input -->
+            <div class="form-outline mb-5 mt-5">
+              <input type="password" id="password" class="form-control" />
+              <label class="form-label" for="password">Password</label>
+            </div>
+          
+            <!-- Submit button -->
+            <button type="button" class="btn btn-primary btn-block mb-4">Sign in</button>
+
+          </form>
+    </div>
+
+    <script>
+        // ************************ login ***************** //
+        // on click of the submit button, call the login function
+        document.querySelector("button").addEventListener("click", login)
+
+        // send http get request to the api/login
+        function login() {
+
+            var xhr = new XMLHttpRequest()
+            // get the email and password from the form
+            var email = document.getElementById("email").value
+            var password = document.getElementById("password").value
+            
+            
+            xhr.open('POST', 'http://127.0.0.1:8000/login', true)
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    // if the response is success, redirect to the ui page
+                    window.location.href = "/ui"
+                } else {
+                    // if the response is error, alert the error message
+                    alert("Invalid email or credentials")
+                }
+
+            }
+            xhr.send(JSON.stringify({email: email, password: password}))
+        }
+    </script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-image: url("https://i.danielalas.com/cb902416");
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-color: rgb(41, 57, 74);
+            background-blend-mode: multiply;
+        }
+        /* center the form on the page */
+        form {
+            margin: 0 auto;
+            width: 600px;
+            padding: 1em;
+            border-radius: 1em;
+        }
+        .form-label {
+            color: #a5a5a5;
+        }
+        /* style the input fields */
+        input {
+            color: #373737;
+            width: 100%;
+            padding: 0.5em;
+            margin: 0.5em 0;
+        }
+        /* style the submit button */
+        button {
+            padding: 0.7em;
+            color: #a5a5a5;
+            background-color: #337ab7;
+            border: 0;
+            border-radius: 0.3em;
+            cursor: pointer;
+        }
+    </style>
+</html>

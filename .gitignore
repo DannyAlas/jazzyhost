@@ -1,0 +1,6 @@
+.env
+__pycache__/
+Scripts/
+Lib/
+Include/
+.vercel
