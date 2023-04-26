@@ -94,7 +94,7 @@
             let fileName = val.substring(val.lastIndexOf('/')+1)
             // send a delete request to the server
             var xhr = new XMLHttpRequest()
-            xhr.open('DELETE', 'http://127.0.0.1:8000/delete/' + fileName, true)
+            xhr.open('DELETE', '/delete/' + fileName, true)
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
             xhr.send()
             xhr.onload = function() {
@@ -191,7 +191,7 @@
 
 
         function uploadFile(file, i) {
-            var url = 'http://127.0.0.1:8000/upload'
+            var url = '/upload'
             var xhr = new XMLHttpRequest()
             var formData = new FormData()
             xhr.open('POST', url, true)
