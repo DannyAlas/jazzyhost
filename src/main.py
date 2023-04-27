@@ -49,6 +49,39 @@ app.add_middleware(
 )
 app.mount("/public", StaticFiles(directory="./src/public"), name="public")
 
+class ImageModel:
+    def __init__(self, name, extenstion, url, user_ip, user_uid, optimized, uploaded_at, last_seen):
+        self.name=name
+        self.extenstion=extenstion
+        self.url=url
+        self.user_ip=user_ip
+        self.user_uid=user_uid
+        self.optimized=optimized
+        self.uploaded_at=uploaded_at
+        self.last_seen=last_seen
+    def to_encodable_dict(self):
+        """Return the dict representation of the image replacing sentinel values with strings"""
+        return {
+            "name": self.name,
+            "extenstion": self.extenstion,
+            "url": self.url,
+            "user_ip": self.user_ip,
+            "user_uid": self.user_uid,
+            "optimized": self.optimized,
+            "uploaded_at": "Sentinel value, not used",
+            "last_seen": "Sentinel value, not used",
+        }
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "extenstion": self.extenstion,
+            "url": self.url,
+            "user_ip": self.user_ip,
+            "user_uid": self.user_uid,
+            "optimized": self.optimized,
+            "uploaded_at": self.uploaded_at,
+            "last_seen": self.last_seen,
+        }
 
 # on the root endpoint, return the ui if there is nothing after the slash
 @app.get("/")
@@ -134,6 +167,7 @@ async def validate(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
+    print(request.headers)
     should_optimize = True
     file = await request.form()
     if file is None or file["file"].size <= 0:
@@ -143,12 +177,13 @@ async def upload(request: Request):
         return HTTPException(
             detail={"message": "Error! Missing User IP", "headers": request.headers}, status_code=400
         )
-    if os.path.exists("tmp") is False:
-        os.mkdir("tmp")
-    image = object(
-        name=str(uuid.uuid4())[:8],
+    if not os.path.exists(f"./tmp"):
+        os.makedirs(f"./tmp")
+    name = str(uuid.uuid4())[:8]
+    image = ImageModel(
+        name=name,
         extenstion=file["file"].filename.split(".")[-1],
-        url=f"{IMAGES_ENPOINT}/{image.name}",
+        url=f"{IMAGES_ENPOINT}{name}",
         user_ip=user_ip,
         user_uid=None,
         optimized=False,
@@ -171,7 +206,7 @@ async def upload(request: Request):
             )
         # if not check that the user has not uploaded more than 10 images in the last hour
         query = db.collection("files").where("user_ip", "==", user_ip).where(
-            "uploaded", ">", datetime.datetime.now() - datetime.timedelta(hour=1)
+            "uploaded", ">", datetime.datetime.now() - datetime.timedelta(hours=1)
         ).stream()
         if len(list(query)) >= 10:
             return HTTPException(
@@ -187,11 +222,11 @@ async def upload(request: Request):
         blob.upload_from_filename(f"tmp/{image.name}.{image.extenstion}")
         image.optimized = True
         # update the database
-        db.collection("files").document(image.id).set(image.to_dict())
-        # delete the image
-        os.remove(f"tmp/{image.name}.{image.extenstion}")
+        db.collection("files").document(image.name).set(image.to_dict())
+        # vercel should remove these automatiaclly, save io ops 
+        # os.remove(f"tmp/{image.name}.{image.extenstion}")
         return JSONResponse(
-            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_dict()}, status_code=200
+            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_encodable_dict()}, status_code=200
         )
     else:
         # upload the image
@@ -200,9 +235,9 @@ async def upload(request: Request):
             file["file"].file.read(), content_type=file["file"].content_type
         )
         # update the database
-        db.collection("files").document(image.id).set(image.to_dict())
+        db.collection("files").document(image.name).set(image.to_dict())
         return JSONResponse(
-            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_dict()}, status_code=200
+            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_encodable_dict()}, status_code=200
         )
 
 # delete file
@@ -242,13 +277,18 @@ async def delete_file(filename: str, request: Request):
 async def get_all(request: Request):
     try:
         urls = []
-        file = db.collection("files").get()
-        if len(file) > 100:
+        files = db.collection("files").get()
+        
+        if len(files) > 100:
             # crash the server, just in case spam uploads
-            file = fil # type: ignore
+            files = fil # type: ignore
+
         # sort files by upload date
-        file = sorted(file, key=lambda x: x.to_dict()["uploaded"], reverse=False)
-        for f in file:
+        try:
+            files = sorted(files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True)
+        except:
+            pass
+        for f in files:
             urls.append(f.to_dict()["url"])
 
         return JSONResponse(content={"urls": urls}, status_code=200)
