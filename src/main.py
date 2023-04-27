@@ -2,7 +2,7 @@ import datetime
 import json
 import os
 import uuid
-
+import io
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Request
@@ -180,7 +180,6 @@ async def validate(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
-    print(request.headers)
     should_optimize = True
     file = await request.form()
     if file is None or file["file"].size <= 0:
@@ -191,8 +190,6 @@ async def upload(request: Request):
             detail={"message": "Error! Missing User IP", "headers": request.headers},
             status_code=400,
         )
-    if not os.path.exists(f"./tmp"):
-        os.makedirs(f"./tmp")
     name = str(uuid.uuid4())[:8]
     image = ImageModel(
         name=name,
@@ -239,15 +236,14 @@ async def upload(request: Request):
     if image.extenstion in ["png", "jpg", "jpeg"] and should_optimize:
         # save the image
         img = Image.open(file["file"].file)
-        img.save(f"tmp/{image.name}.{image.extenstion}", optimize=True, quality=50)
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, optimize=True, quality=50)
         # upload the image
         blob = bucket.blob(image.name)
-        blob.upload_from_filename(f"tmp/{image.name}.{image.extenstion}")
+        blob.upload_from_file(img_byte_arr, content_type=file["file"].content_type)
         image.optimized = True
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
-        # vercel should remove these automatiaclly, save io ops
-        # os.remove(f"tmp/{image.name}.{image.extenstion}")
         return JSONResponse(
             content={
                 "message": "Successfully uploaded file",
