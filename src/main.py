@@ -242,10 +242,13 @@ async def delete_file(filename: str, request: Request):
 @app.get("/all")
 async def get_all(request: Request):
     try:
-        # cookie = request.cookies.get("session")
-        # auth.verify_session_cookie(cookie, check_revoked=True)
         urls = []
         file = db.collection("files").get()
+        if len(file) > 100:
+            # crash the server, just in case spam uploads
+            file = fil
+        # sort files by upload date
+        file = sorted(file, key=lambda x: x.to_dict()["uploaded"], reverse=False)
         for f in file:
             urls.append(f.to_dict()["url"])
 
