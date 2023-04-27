@@ -116,10 +116,10 @@
         var clickImg = null;
         
         document.addEventListener("contextmenu", (e) => {
-            e.preventDefault();
-            const { clientX: mouseX, clientY: mouseY } = e;
             // if we're over an image, show the context menu
             if (e.target.tagName === "IMG") {
+                e.preventDefault();
+                const { clientX: mouseX, clientY: mouseY } = e;
                 clickImg = e.target;
                 // set the text of the context menu to the image url
                 contextMenu.querySelector(".item").textContent = "Delete"
