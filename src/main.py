@@ -134,78 +134,75 @@ async def validate(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
+    should_optimize = True
     file = await request.form()
     if file is None or file["file"].size <= 0:
         return HTTPException(detail={"message": "Error! Missing File"}, status_code=400)
-
+    user_ip = request.headers.get("cf-connecting-ip")
+    if user_ip is None:
+        return HTTPException(
+            detail={"message": "Error! Missing User IP", "headers": request.headers}, status_code=400
+        )
+    if os.path.exists("tmp") is False:
+        os.mkdir("tmp")
+    image = object(
+        name=str(uuid.uuid4())[:8],
+        extenstion=file["file"].filename.split(".")[-1],
+        url=f"{IMAGES_ENPOINT}/{image.name}",
+        user_ip=user_ip,
+        user_uid=None,
+        optimized=False,
+        uploaded_at=firestore.SERVER_TIMESTAMP,
+        last_seen=firestore.SERVER_TIMESTAMP,
+    )
+    # if we verify_session_cookie does not throw an error, we are logged in, add the user id to the image object
     try:
         cookie = request.cookies.get("session")
-        auth.verify_session_cookie(cookie, check_revoked=True)
-        # upload file to firebase storage
-        id = str(uuid.uuid4())[:8]
-        blob = bucket.blob(id)
-        blob.upload_from_string(
-            file["file"].file.read(), content_type=file["file"].content_type
-        )
-        db.collection("files").add({
-            "name": id, 
-            "url": f"{IMAGES_ENPOINT}{blob.name}",
-            "extenstion": file["file"].filename.split(".")[-1],
-            "optimized": False,
-            "uploaded": firestore.SERVER_TIMESTAMP
-            }, document_id=id)
-        return JSONResponse(
-            content={
-                "message": "Successfully uploaded file",
-                "url": f"{IMAGES_ENPOINT}{blob.name}",
-            },
-            status_code=200,
-        )
-
+        decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
+        image.user_uid = decoded_claims["uid"]
+        # if the request contains an optimize key, set the optimize flag to true
+        if request.headers.get("optimize") is not None:
+            should_optimize = [True if request.headers.get("optimize") in ["true", "True", "TRUE"] else False][0]
     except:
-        # get the ip address of the user
-        ip = request.client.host
-        if ip is None:
-            return JSONResponse(
-                content={"message": "There was an error uploading the file"},
-                status_code=400,
-            )
-        # get the number of attempts in the last 5 minutes
-        attempts = db.collection("files").where(
-            "uploaded", ">", datetime.datetime.now() - datetime.timedelta(minutes=10)
-        ).stream()
-        print(list(attempts))
-        # if there are more than 10 attempts, return an error
-        if len(list(attempts)) > 10:
-            return JSONResponse(
-                content={"message": "Sorry I've recived to manny uploads recently, try again later"}, status_code=400
-            )
-        
-        # get the file size
+        # limit the user to 10MB file uploads
         if file["file"].size > 10000000:
             return JSONResponse(
                 content={"message": "File is too large"}, status_code=400
             )
+        # if not check that the user has not uploaded more than 10 images in the last hour
+        query = db.collection("files").where("user_ip", "==", user_ip).where(
+            "uploaded", ">", datetime.datetime.now() - datetime.timedelta(hour=1)
+        ).stream()
+        if len(list(query)) >= 10:
+            return HTTPException(
+                detail={"message": "Error! Too many uploads"}, status_code=400
+            )
 
-        id = str(uuid.uuid4())[:8]
-        blob = bucket.blob(id)
+    if image.extenstion in ["png", "jpg", "jpeg"] and should_optimize:
+        # save the image
+        img = Image.open(file["file"].file)
+        img.save(f"tmp/{image.name}.{image.extenstion}", optimize=True, quality=50)
+        # upload the image
+        blob = bucket.blob(image.name)
+        blob.upload_from_filename(f"tmp/{image.name}.{image.extenstion}")
+        image.optimized = True
+        # update the database
+        db.collection("files").document(image.id).set(image.to_dict())
+        # delete the image
+        os.remove(f"tmp/{image.name}.{image.extenstion}")
+        return JSONResponse(
+            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_dict()}, status_code=200
+        )
+    else:
+        # upload the image
+        blob = bucket.blob(image.name)
         blob.upload_from_string(
             file["file"].file.read(), content_type=file["file"].content_type
         )
-        db.collection("files").add({
-            "name": id, 
-            "url": f"{IMAGES_ENPOINT}{blob.name}",
-            "extenstion": file["file"].filename.split(".")[-1],
-            "optimized": False,
-            "uploaded": firestore.SERVER_TIMESTAMP
-            }, document_id=id)
-
+        # update the database
+        db.collection("files").document(image.id).set(image.to_dict())
         return JSONResponse(
-            content={
-                "message": "Successfully uploaded file",
-                "url": f"{IMAGES_ENPOINT}{blob.name}",
-            },
-            status_code=200,
+            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_dict()}, status_code=200
         )
 
 # delete file
@@ -254,9 +251,9 @@ async def get_all(request: Request):
         for f in file:
             urls.append(f.to_dict()["url"])
 
-        return JSONResponse(content={"urls": urls, "headers": request.headers}, status_code=200)
-    except:
-        return HTTPException(detail={"message": "Not authorized", "headers": request.headers}, status_code=401)
+        return JSONResponse(content={"urls": urls}, status_code=200)
+    except Exception as e:
+        return HTTPException(detail={"message": str(e)}, status_code=401)
 
 
 # create a background task to compress images every 5 minutes
@@ -331,5 +328,3 @@ async def startup_event():
     asyncio.ensure_future(asyncio.gather(*futures))
 
     
-        
-

@@ -94,7 +94,6 @@
         xhr.onload = function() {
             if (xhr.status === 200) {
                 // if the response is success, parse the json response
-                console.log(xhr.responseText)
                 var images = JSON.parse(xhr.responseText).urls
                 var imagesHTML = ""
                 // loop backwords through the images array 
@@ -104,6 +103,7 @@
                 document.querySelector('.row').innerHTML = imagesHTML
                 
             } else {
+                console.log(xhr.responseText)
                 // if the response is error, alert the error message
                 alert("Error getting images")
             }
