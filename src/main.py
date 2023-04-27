@@ -1,22 +1,18 @@
-from asyncio import futures
 import datetime
 import json
 import os
 import uuid
-import asyncio
-from PIL import Image
-import fastapi
+
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from firebase_admin import auth, credentials, storage, initialize_app
+from firebase_admin import auth, credentials, initialize_app, storage
 from google.cloud import firestore
 from PIL import Image
-import io
 
 load_dotenv()
 IMAGES_ENPOINT = "https://i.danielalas.com/"
@@ -49,16 +45,28 @@ app.add_middleware(
 )
 app.mount("/public", StaticFiles(directory="./src/public"), name="public")
 
+
 class ImageModel:
-    def __init__(self, name, extenstion, url, user_ip, user_uid, optimized, uploaded_at, last_seen):
-        self.name=name
-        self.extenstion=extenstion
-        self.url=url
-        self.user_ip=user_ip
-        self.user_uid=user_uid
-        self.optimized=optimized
-        self.uploaded_at=uploaded_at
-        self.last_seen=last_seen
+    def __init__(
+        self,
+        name,
+        extenstion,
+        url,
+        user_ip,
+        user_uid,
+        optimized,
+        uploaded_at,
+        last_seen,
+    ):
+        self.name = name
+        self.extenstion = extenstion
+        self.url = url
+        self.user_ip = user_ip
+        self.user_uid = user_uid
+        self.optimized = optimized
+        self.uploaded_at = uploaded_at
+        self.last_seen = last_seen
+
     def to_encodable_dict(self):
         """Return the dict representation of the image replacing sentinel values with strings"""
         return {
@@ -71,6 +79,7 @@ class ImageModel:
             "uploaded_at": "Sentinel value, not used",
             "last_seen": "Sentinel value, not used",
         }
+
     def to_dict(self):
         return {
             "name": self.name,
@@ -83,20 +92,24 @@ class ImageModel:
             "last_seen": self.last_seen,
         }
 
+
 # on the root endpoint, return the ui if there is nothing after the slash
 @app.get("/")
 async def root(request: Request):
     return RedirectResponse(url="/ui")
+
 
 @app.get("/ui", include_in_schema=False)
 async def root(request: Request):
     # return static html file
     return HTMLResponse(content=open("./src/static/index.html", "r").read())
 
+
 @app.get("/ui/all", include_in_schema=False)
 async def root(request: Request):
     # return static html file
     return HTMLResponse(content=open("./src/static/all.html", "r").read())
+
 
 @app.get("/ui/login", include_in_schema=False)
 async def login(request: Request):
@@ -175,7 +188,8 @@ async def upload(request: Request):
     user_ip = request.headers.get("cf-connecting-ip")
     if user_ip is None:
         return HTTPException(
-            detail={"message": "Error! Missing User IP", "headers": request.headers}, status_code=400
+            detail={"message": "Error! Missing User IP", "headers": request.headers},
+            status_code=400,
         )
     if not os.path.exists(f"./tmp"):
         os.makedirs(f"./tmp")
@@ -197,7 +211,11 @@ async def upload(request: Request):
         image.user_uid = decoded_claims["uid"]
         # if the request contains an optimize key, set the optimize flag to true
         if request.headers.get("optimize") is not None:
-            should_optimize = [True if request.headers.get("optimize") in ["true", "True", "TRUE"] else False][0]
+            should_optimize = [
+                True
+                if request.headers.get("optimize") in ["true", "True", "TRUE"]
+                else False
+            ][0]
     except:
         # limit the user to 10MB file uploads
         if file["file"].size > 10000000:
@@ -205,9 +223,14 @@ async def upload(request: Request):
                 content={"message": "File is too large"}, status_code=400
             )
         # if not check that the user has not uploaded more than 10 images in the last hour
-        query = db.collection("files").where("user_ip", "==", user_ip).where(
-            "uploaded", ">", datetime.datetime.now() - datetime.timedelta(hours=1)
-        ).stream()
+        query = (
+            db.collection("files")
+            .where("user_ip", "==", user_ip)
+            .where(
+                "uploaded", ">", datetime.datetime.now() - datetime.timedelta(hours=1)
+            )
+            .stream()
+        )
         if len(list(query)) >= 10:
             return HTTPException(
                 detail={"message": "Error! Too many uploads"}, status_code=400
@@ -223,10 +246,15 @@ async def upload(request: Request):
         image.optimized = True
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
-        # vercel should remove these automatiaclly, save io ops 
+        # vercel should remove these automatiaclly, save io ops
         # os.remove(f"tmp/{image.name}.{image.extenstion}")
         return JSONResponse(
-            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_encodable_dict()}, status_code=200
+            content={
+                "message": "Successfully uploaded file",
+                "url": image.url,
+                "image_params": image.to_encodable_dict(),
+            },
+            status_code=200,
         )
     else:
         # upload the image
@@ -237,8 +265,14 @@ async def upload(request: Request):
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
         return JSONResponse(
-            content={"message": "Successfully uploaded file", "url": image.url, "image_params": image.to_encodable_dict()}, status_code=200
+            content={
+                "message": "Successfully uploaded file",
+                "url": image.url,
+                "image_params": image.to_encodable_dict(),
+            },
+            status_code=200,
         )
+
 
 # delete file
 @app.delete("/delete/{filename}")
@@ -261,7 +295,6 @@ async def delete_file(filename: str, request: Request):
             )
         # delete file from database
         db.collection("files").document(filename).delete()
-        
 
         return JSONResponse(
             content={"message": "Successfully deleted file"}, status_code=200
@@ -278,14 +311,16 @@ async def get_all(request: Request):
     try:
         urls = []
         files = db.collection("files").get()
-        
+
         if len(files) > 100:
             # crash the server, just in case spam uploads
-            files = fil # type: ignore
+            files = fil  # type: ignore
 
         # sort files by upload date
         try:
-            files = sorted(files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True)
+            files = sorted(
+                files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True
+            )
         except:
             pass
         for f in files:
@@ -342,14 +377,14 @@ async def get_all(request: Request):
 #     Syncs the firestore database with the storage bucket once a day
 #     """
 #     while True:
-        
+
 #         blobs = bucket.list_blobs()
 #         files = db.collection("files").get()
 #         print("Syncing database with storage bucket")
 #         for blob in blobs:
 #             if blob.name not in [file.id for file in files]:
 #                 db.collection("files").add({
-#                     "name": blob.name, 
+#                     "name": blob.name,
 #                     "url": f"{IMAGES_ENPOINT}{blob.name}",
 #                     "extenstion": blob.content_type.split("/")[1],
 #                     "optimized": False,
@@ -368,7 +403,7 @@ async def get_all(request: Request):
 #                     print(e)
 #                     continue
 
-        
+
 #         await asyncio.sleep(100)
 
 # @app.on_event("startup")
@@ -376,4 +411,3 @@ async def get_all(request: Request):
 #     # create a background task to compress images every 5 minutes
 #     futures = [sync_st_db()]
 #     asyncio.ensure_future(asyncio.gather(*futures))
-
