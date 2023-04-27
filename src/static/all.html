@@ -1,79 +1,169 @@
 <!-- display a grid of images from the api using bootstrap 5-->
 <!DOCTYPE html>
-<head>
-    <meta charset="utf-8">
-    <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css?family=Fira+Code">
-    <title>Drag and Drop File Uploading</title>
-    <meta charset="UTF-8">
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
-</head>
-<script>
-    // get request to the api/all
-    var xhr = new XMLHttpRequest()
-    xhr.open('GET', '/all', true)
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            // if the response is success, display the images
-            console.log(xhr.responseText)
-            var images = JSON.parse(xhr.responseText).urls
-            var imagesHTML = ""
-            for (var i in images) {
-                imagesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + images[i] + '" class="card-img-top" alt="..."></div></div></div>'
-            }
-            document.querySelector('.row').innerHTML = imagesHTML
-            
-        } else {
-            // if the response is error, alert the error message
-            alert("Error getting images")
+<html lang="en" data-bs-theme="dark">
+    <head>
+        <meta charset="utf-8">
+        <link rel="stylesheet"
+            href="https://fonts.googleapis.com/css?family=Fira+Code">
+        <title>Jazzy Image Host</title>
+        <meta charset="UTF-8">
+        <!-- Bootstrap CSS -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
+    </head>
+    <style>
+        body {
+            font-family: 'Fira Code';
+            background-image:  url("https://i.danielalas.com/4012f3fd");
+            background-repeat: no-repeat;
+            background-color: rgb(41, 57, 74);
+            background-size: cover;
+            background-blend-mode: multiply;
         }
-    }
-    xhr.send()
-    // on right click, of a image create a prompt to delete the image
+        .container {
+            margin-top: 50px;
+        }
+        .card {
+            background-color: rgb(41, 57, 74);
+            border: 1px solid rgb(41, 57, 74);
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px 0px rgba(0,0,0,0.75);
+            width: 19rem;
+        }
+        .card-body {
+            padding: 2px;
+        }
+        .card-img-top {
+            border-radius: 10px;
+        }
+        #main {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #context-menu {
+        position: fixed;
+        z-index: 10000;
+        width: 150px;
+        background: #1b1a1a;
+        border-radius: 5px;
+        display: none;
+        
+        }
+        #context-menu .item {
+            padding: 8px 10px;
+            font-size: 14px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #context-menu .item:hover {
+            background: #3c3b3b;
+        }
+        #context-menu.visable {
+            display: block;
+        }
 
-
-
-</script>
-<style>
-    body {
-        font-family: 'Fira Code';
-        background-image:  url("https://i.danielalas.com/4012f3fd");
-        background-repeat: no-repeat;
-        background-color: rgb(41, 57, 74);
-        background-size: cover;
-        background-blend-mode: multiply;
-    }
-    .container {
-        margin-top: 50px;
-    }
-    .card {
-        background-color: rgb(41, 57, 74);
-        border: 1px solid rgb(41, 57, 74);
-        border-radius: 10px;
-        box-shadow: 0px 0px 10px 0px rgba(0,0,0,0.75);
-        width: 19rem;
-    }
-    .card-body {
-        padding: 2px;
-    }
-    .card-img-top {
-        border-radius: 10px;
-    }
-</style>
-<body>
-    <div class="container mt-4">
-        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-            <button type="button" class="btn shadow-sm btn-outline-secondary" onclick="window.location.href='/'">Upload</button>
-        </div>
-        <div class="row">
-            <div class="col-auto mb-3">
-                <div class="card" style="width: 18rem;">
-                    <div class="card-body">
+    </style>
+    <body>
+        <div>
+            <div id="context-menu">
+                <div class="item"></div>
+            </div>
+            <div class="container mt-4" id="main">
+                <div class="row">
+                    <div class="col-auto mb-3">
+                        <div class="card" style="width: 18rem;">
+                            <div class="card-body">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+            <div class="position-fixed bottom-0 end-0 p-5">
+                <a href="/ui" class="btn shadow-sm btn-outline-secondary">Upload</a>
+            </div>
         </div>
-    </div>
-</body>
+    </body>
+    <script>
+        // get request to the api/all
+        var xhr = new XMLHttpRequest()
+        xhr.open('GET', '/all', true)
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                var images = JSON.parse(xhr.responseText).urls
+                var imagesHTML = ""
+                // loop backwords through the images array 
+                for (i = images.length - 1; i >= 0; i--) {
+                    imagesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + images[i] + '" class="card-img-top" alt="..."></div></div></div>'
+                }
+                document.querySelector('.row').innerHTML = imagesHTML
+                
+            } else {
+                // if the response is error, alert the error message
+                alert("Error getting images")
+            }
+        }
+        xhr.send()
+
+        const contextMenu = document.getElementById("context-menu");
+        contextMenu.classList.remove("visible");        
+        var clickImg = null;
+        
+        document.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            const { clientX: mouseX, clientY: mouseY } = e;
+            // if we're over an image, show the context menu
+            if (e.target.tagName === "IMG") {
+                clickImg = e.target;
+                // set the text of the context menu to the image url
+                contextMenu.querySelector(".item").textContent = "Delete"
+                contextMenu.style.top = `${mouseY}px`;
+                contextMenu.style.left = `${mouseX}px`;
+                contextMenu.style.display = "block";
+                if (document.cookie.includes("session=")) {
+                    contextMenu.querySelector(".item").textContent = "Delete"
+                } else {
+                    contextMenu.querySelector(".item").textContent = "Open"
+                }
+            }
+           
+        });
+
+        document.addEventListener("click", (e) => {
+            if (e.target.offsetParent !== contextMenu) {
+                contextMenu.style.display = "none";
+            }
+        });
+
+        // on click of the delete button, log the image url
+        document.addEventListener("click", (e) => {
+            if (e.target.classList.contains("item")) {
+                imgName = clickImg.src.split("/").pop();
+                if (document.cookie.includes("session=")) {
+                    // send a delete request to the api
+                    var xhr = new XMLHttpRequest()
+                    xhr.open('DELETE', `/delete/${imgName}`, true)
+                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+                    xhr.onload = function() {
+                        if (xhr.status === 200) {
+                            // if the response is success, reload the page
+                            location.reload();
+                        } else {
+                            // if the response is error, alert the error message
+                            alert("Error deleting image")
+                        }
+                    }
+                    xhr.send()
+                } else {
+                    // if we don't have a session cookie open the image in a new tab
+                    window.open(clickImg.src, "_blank");
+                }
+
+                
+            }
+        });
+
+    </script>
+</html>

@@ -1,3 +1,4 @@
+from asyncio import futures
 import datetime
 import json
 import os
@@ -94,6 +95,7 @@ async def login(request: Request):
         r = requests.post(
             rest_api_url, params={"key": FIREBASE_WEB_API_KEY}, data=payload
         )
+        print(r.text)
         token = json.loads(r.text)["idToken"]
         # create session cookie
         cookie = auth.create_session_cookie(
@@ -149,7 +151,7 @@ async def upload(request: Request):
             "extenstion": file["file"].filename.split(".")[-1],
             "optimized": False,
             "uploaded": firestore.SERVER_TIMESTAMP
-            })
+            }, document_id=id)
         return JSONResponse(
             content={
                 "message": "Successfully uploaded file",
@@ -166,21 +168,17 @@ async def upload(request: Request):
                 content={"message": "There was an error uploading the file"},
                 status_code=400,
             )
-        # check if the ip address is in the database
-        doc = db.collection("user").document(ip).get()
-        if doc.exists:
-            # get the number of attempts
-            attempts = doc.to_dict()["attempts"]
-            if attempts >= 10:
-                return JSONResponse(
-                    content={"message": "Too many attempts"}, status_code=400
-                )
-            # increment the number of attempts
-            db.collection("user").document(ip).update({"attempts": attempts + 1})
-        else:
-            # create a document for the ip address
-            db.collection("user").document(ip).set({"attempts": 1})
-
+        # get the number of attempts in the last 5 minutes
+        attempts = db.collection("files").where(
+            "uploaded", ">", datetime.datetime.now() - datetime.timedelta(minutes=10)
+        ).stream()
+        print(list(attempts))
+        # if there are more than 10 attempts, return an error
+        if len(list(attempts)) > 10:
+            return JSONResponse(
+                content={"message": "Sorry I've recived to manny uploads recently, try again later"}, status_code=400
+            )
+        
         # get the file size
         if file["file"].size > 10000000:
             return JSONResponse(
@@ -192,9 +190,13 @@ async def upload(request: Request):
         blob.upload_from_string(
             file["file"].file.read(), content_type=file["file"].content_type
         )
-        db.collection("files").add(
-            {"user": ip, "name": id, "url": f"{IMAGES_ENPOINT}{blob.name}"}
-        )
+        db.collection("files").add({
+            "name": id, 
+            "url": f"{IMAGES_ENPOINT}{blob.name}",
+            "extenstion": file["file"].filename.split(".")[-1],
+            "optimized": False,
+            "uploaded": firestore.SERVER_TIMESTAMP
+            }, document_id=id)
 
         return JSONResponse(
             content={
@@ -204,26 +206,28 @@ async def upload(request: Request):
             status_code=200,
         )
 
-
 # delete file
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str, request: Request):
     try:
-        print(filename)
         cookie = request.cookies.get("session")
         auth.verify_session_cookie(cookie, check_revoked=True)
-        blob = bucket.get_blob(filename).delete()
+        print(filename)
+        blob = bucket.blob(filename)
+        blob.delete()
         if blob is None:
             return JSONResponse(
                 content={"message": "File does not exist"}, status_code=400
             )
 
-        db_file = db.collection("files").where("name", "==", filename).get()
+        db_file = db.collection("files").document(filename).get()
         if db_file is None:
             return JSONResponse(
                 content={"message": "File does not exist"}, status_code=400
             )
-        db_file.delete()
+        # delete file from database
+        db.collection("files").document(filename).delete()
+        
 
         return JSONResponse(
             content={"message": "Successfully deleted file"}, status_code=200
@@ -238,8 +242,8 @@ async def delete_file(filename: str, request: Request):
 @app.get("/all")
 async def get_all(request: Request):
     try:
-        cookie = request.cookies.get("session")
-        auth.verify_session_cookie(cookie, check_revoked=True)
+        # cookie = request.cookies.get("session")
+        # auth.verify_session_cookie(cookie, check_revoked=True)
         urls = []
         file = db.collection("files").get()
         for f in file:
@@ -249,16 +253,6 @@ async def get_all(request: Request):
     except:
         return HTTPException(detail={"message": "Not authorized"}, status_code=401)
 
-
-@app.get("/random")
-async def get_random():
-    import random
-
-    blobs:storage_blob = bucket.list_blobs()
-    urls = []
-    for blob in blobs:
-        urls.append(f"{IMAGES_ENPOINT}{blob.name}")
-    return JSONResponse(content={"url": random.choice(urls)}, status_code=200)
 
 # create a background task to compress images every 5 minutes
 async def compress_images():
@@ -301,10 +295,35 @@ async def compress_images():
             print(e)
             await asyncio.sleep(1800)
 
+async def sync_st_db():
+    """
+    Syncs the firestore database with the storage bucket once a day
+    """
+    while True:
+        blobs = bucket.list_blobs()
+        files = db.collection("files").get()
+        for blob in blobs:
+            if blob.name not in [file.id for file in files]:
+                db.collection("files").add({
+                    "name": blob.name, 
+                    "url": f"{IMAGES_ENPOINT}{blob.name}",
+                    "extenstion": blob.to_dict()["contentType"].split("/")[-1],
+                    "optimized": False,
+                    "uploaded": firestore.SERVER_TIMESTAMP
+                    }, document_id=blob.name)
+
+        for file in files:
+            if file.to_dict()["name"] not in [blob.name for blob in blobs]:
+                file.delete()
+
+        
+        await asyncio.sleep(86400)
+
 @app.on_event("startup")
 async def startup_event():
     # create a background task to compress images every 5 minutes
-    asyncio.create_task(compress_images())
+    futures = [compress_images(), sync_st_db()]
+    asyncio.ensure_future(asyncio.gather(*futures))
 
     
         
