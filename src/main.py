@@ -297,74 +297,83 @@ async def get_all(request: Request):
 
 
 # create a background task to compress images every 5 minutes
-async def compress_images():
-    if not os.path.exists("tmp"):
-        os.mkdir("tmp")
-    while True:
-        try:
-            images = db.collection("files").get()
+# async def compress_images():
+#     if not os.path.exists("tmp"):
+#         os.mkdir("tmp")
+#     while True:
+#         try:
+#             images = db.collection("files").get()
 
-            for image in images:
-                if image.to_dict().get("optimized") or image.to_dict().get("extenstion") not in ["jpg", "jpeg", "png"]:
-                    continue
-                # check if the image link is valid
-                try:
+#             for image in images:
+#                 if image.to_dict().get("optimized") or image.to_dict().get("extenstion") not in ["jpg", "jpeg", "png"]:
+#                     continue
+#                 # check if the image link is valid
+#                 try:
 
-                    name = f"tmp/{image.to_dict()['name']}.{image.to_dict()['extenstion']}"
-                    # download the image
-                    with requests.get(image.to_dict()["url"], stream=True) as r:
-                        r.raise_for_status()
-                        with open(name, "wb") as f:
-                            for chunk in r.iter_content(chunk_size=8192):
-                                f.write(chunk)
+#                     name = f"tmp/{image.to_dict()['name']}.{image.to_dict()['extenstion']}"
+#                     # download the image
+#                     with requests.get(image.to_dict()["url"], stream=True) as r:
+#                         r.raise_for_status()
+#                         with open(name, "wb") as f:
+#                             for chunk in r.iter_content(chunk_size=8192):
+#                                 f.write(chunk)
 
-                    # open the image
-                    img = Image.open(name)
-                    # save the image
-                    img.save(name, optimize=True, quality=50)
-                    # upload the image
-                    blob = bucket.blob(image.to_dict()["name"])
-                    blob.upload_from_filename(name)
-                    # update the database
-                    db.collection("files").document(image.id).update({"optimized": True})
-                    # delete the image
-                    os.remove(name)
-                except Exception as e:
-                    print(e)
-                    continue
-            await asyncio.sleep(1800)
-        except Exception as e:
-            print(e)
-            await asyncio.sleep(1800)
+#                     # open the image
+#                     img = Image.open(name)
+#                     # save the image
+#                     img.save(name, optimize=True, quality=50)
+#                     # upload the image
+#                     blob = bucket.blob(image.to_dict()["name"])
+#                     blob.upload_from_filename(name)
+#                     # update the database
+#                     db.collection("files").document(image.id).update({"optimized": True})
+#                     # delete the image
+#                     os.remove(name)
+#                 except Exception as e:
+#                     print(e)
+#                     continue
+#             await asyncio.sleep(1800)
+#         except Exception as e:
+#             print(e)
+#             await asyncio.sleep(1800)
 
-async def sync_st_db():
-    """
-    Syncs the firestore database with the storage bucket once a day
-    """
-    while True:
-        blobs = bucket.list_blobs()
-        files = db.collection("files").get()
-        for blob in blobs:
-            if blob.name not in [file.id for file in files]:
-                db.collection("files").add({
-                    "name": blob.name, 
-                    "url": f"{IMAGES_ENPOINT}{blob.name}",
-                    "extenstion": blob.to_dict()["contentType"].split("/")[-1],
-                    "optimized": False,
-                    "uploaded": firestore.SERVER_TIMESTAMP
-                    }, document_id=blob.name)
+# async def sync_st_db():
+#     """
+#     Syncs the firestore database with the storage bucket once a day
+#     """
+#     while True:
+        
+#         blobs = bucket.list_blobs()
+#         files = db.collection("files").get()
+#         print("Syncing database with storage bucket")
+#         for blob in blobs:
+#             if blob.name not in [file.id for file in files]:
+#                 db.collection("files").add({
+#                     "name": blob.name, 
+#                     "url": f"{IMAGES_ENPOINT}{blob.name}",
+#                     "extenstion": blob.content_type.split("/")[1],
+#                     "optimized": False,
+#                     "uploaded": firestore.SERVER_TIMESTAMP
+#                     }, document_id=blob.name)
 
-        for file in files:
-            if file.to_dict()["name"] not in [blob.name for blob in blobs]:
-                file.delete()
+#         for file in files:
+#             print(file.to_dict())
+#             # if the file doesn't have the same attributes as ImageModel print it
+#             if not all([key in file.to_dict() for key in ImageModel.__dict__.keys()]):
+#                 fdict = file.to_dict()
+#                 try:
+#                     new = ImageModel(name=fdict["name"], url=fdict["url"], extenstion=fdict["extenstion"], optimized=fdict["optimized"], uploaded_at=fdict["uploaded"], last_seen=fdict["uploaded"], user_ip="", user_uid="")
+#                     db.collection("files").document(file.id).set(new.to_dict())
+#                 except Exception as e:
+#                     print(e)
+#                     continue
 
         
-        await asyncio.sleep(86400)
+#         await asyncio.sleep(100)
 
-@app.on_event("startup")
-async def startup_event():
-    # create a background task to compress images every 5 minutes
-    futures = [compress_images(), sync_st_db()]
-    asyncio.ensure_future(asyncio.gather(*futures))
+# @app.on_event("startup")
+# async def startup_event():
+#     # create a background task to compress images every 5 minutes
+#     futures = [sync_st_db()]
+#     asyncio.ensure_future(asyncio.gather(*futures))
 
-    
