@@ -254,9 +254,9 @@ async def get_all(request: Request):
         for f in file:
             urls.append(f.to_dict()["url"])
 
-        return JSONResponse(content={"urls": urls}, status_code=200)
+        return JSONResponse(content={"urls": urls, "headers": request.headers}, status_code=200)
     except:
-        return HTTPException(detail={"message": "Not authorized"}, status_code=401)
+        return HTTPException(detail={"message": "Not authorized", "headers": request.headers}, status_code=401)
 
 
 # create a background task to compress images every 5 minutes
