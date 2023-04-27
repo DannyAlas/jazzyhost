@@ -121,6 +121,7 @@
             var ext = file.name.split('.').pop()
             if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'gif') {
                 alert('Invalid file type. Please upload an image.')
+                progressBar.style.visibility = 'hidden'
                 return
             }
             var url = '/upload'
