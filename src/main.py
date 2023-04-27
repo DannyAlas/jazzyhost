@@ -237,10 +237,10 @@ async def upload(request: Request):
         # save the image
         img = Image.open(file["file"].file)
         img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, optimize=True, quality=50)
+        img.save(img_byte_arr, optimize=True, quality=50, format=image.extenstion)
         # upload the image
         blob = bucket.blob(image.name)
-        blob.upload_from_file(img_byte_arr, content_type=file["file"].content_type)
+        blob.upload_from_file(img_byte_arr.getvalue(), content_type=file["file"].content_type)
         image.optimized = True
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
