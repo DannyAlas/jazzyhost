@@ -5,15 +5,16 @@ import os
 import uuid
 import asyncio
 from PIL import Image
+import fastapi
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from firebase_admin import auth, credentials, storage, initialize_app
 from google.cloud import firestore
-from google.cloud.storage import blob as storage_blob
 from PIL import Image
 import io
 
@@ -46,6 +47,7 @@ app.add_middleware(
     allow_methods=allow_all,
     allow_headers=allow_all,
 )
+app.mount("/public", StaticFiles(directory="./src/public"), name="public")
 
 
 # on the root endpoint, return the ui if there is nothing after the slash
@@ -246,7 +248,7 @@ async def get_all(request: Request):
         file = db.collection("files").get()
         if len(file) > 100:
             # crash the server, just in case spam uploads
-            file = fil
+            file = fil # type: ignore
         # sort files by upload date
         file = sorted(file, key=lambda x: x.to_dict()["uploaded"], reverse=False)
         for f in file:
