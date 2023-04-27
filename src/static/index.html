@@ -14,14 +14,12 @@
     <div id="drop-area">
         <div class="container">
             <div class="row">
-                <div class="col-md-6 mx-auto">
+                <div class="col-md-6 mx-auto" id="main">
                     <!-- center the form on the screen -->
                     <div class="mt-5">
                         <h2 class="text-center" id="typed"></h2>
                     </div>
-                    
                     <div class="mt-5">
-                        
                         <div class="text-center mb-5">
                             <input type="file" id="fileElem" multiple accept="image/*" onchange="handleFiles(this.files)">
                             <label class="button" for="fileElem">Upload</label>
@@ -29,24 +27,14 @@
                         <div>
                             <progress id="progress-bar" max=100 value=0></progress>
                         </div>
-
-                        
                     </div>
                 </div>
             </div>
-            <div id="links" class="row mt-5">
-                <!-- make the table responsive -->
-                <table class="table table-striped" id="links-table">
-                    <tbody id="links" class="text-center">
-                        <!-- links will be added here -->
-                    </tbody>
-                </table>
-            </div>
         </div>
-        <!-- create a small login button in the bottom right -->
         <div class="text-right fixed-bottom mb-5 mr-5">
-            <a href="/ui/login" class="btn shadow-sm btn-outline-secondary">Login</a>
+            <a href="/ui/all" class="btn shadow-sm btn-outline-secondary">all</a>
         </div>
+
     </div>
     <script>
         // ************************ Drag and drop ***************** //
@@ -63,69 +51,8 @@
             }
         }
         typeWriter();
-        function setLinksFromLocalStorage() {
-            // get the links from local storage
-            let links = JSON.parse(localStorage.getItem("daniel_alas_links"))
-            // if there are links, add them to the page
-            if (links) {
-                for (let i = 0; i < links.length; i++) {
-                    if (links[i] == null) {
-                        continue
-                    }
-                    var table = document.getElementById("links").getElementsByTagName('tbody')[0]
-                    var row = table.insertRow(0)
-                    var cell1 = row.insertCell(0)
-                    var cell2 = row.insertCell(1)
-                    var cell3 = row.insertCell(2)
-                    cell1.innerHTML = "<img src='" + links[i] + "' width='50px' height='50px'>"
-                    cell2.innerHTML = "<a href='" + links[i] + "'>" + links[i] + "</a>"
-                    cell3.innerHTML = "<button class='btn btn-secondary btn-outline-dark btn-sm' onclick='deleteLink(" + i + ")'>Delete</button>"
-                }
-            }
-        }
-        setLinksFromLocalStorage()
-
-        function deleteLink(index) {
-            // get the links from local storage
-            let links = JSON.parse(localStorage.getItem("daniel_alas_links"))
-            // remove the link at the given index
-            val = links[index]
-            // get the file name from the link
-            let fileName = val.substring(val.lastIndexOf('/')+1)
-            // send a delete request to the server
-            var xhr = new XMLHttpRequest()
-            xhr.open('DELETE', '/delete/' + fileName, true)
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
-            xhr.send()
-            xhr.onload = function() {
-                console.log("Status: " + xhr.status)
-                if (xhr.status == 200) {
-                console.log("File deleted")
-                // remove the link from the array
-                for (let i = 0; i < links.length; i++) {
-                    if (links[i] == null) {
-                        // remove the null value
-                        links.splice(i, 1)
-                    }
-                    if (links[i] == val) {
-                        links[i] = null
-                    }
-                }
-                // save the links back to local storage
-                localStorage.setItem("daniel_alas_links", JSON.stringify(links))
-                // remove the link from the page
-                var table = document.getElementById("links-table")
-                table.deleteRow(index)
-                // reload the page
-                location.reload()
-            } else {
-                console.log("Error deleting file")
-                }
-        }
 
 
-        }
-        
         // Prevent default drag behaviors
         ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropArea.addEventListener(eventName, preventDefaults, false)   
@@ -189,6 +116,12 @@
         }
 
         function uploadFile(file, i) {
+            // assert file has a valid extension
+            var ext = file.name.split('.').pop()
+            if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'gif') {
+                alert('Invalid file type. Please upload an image.')
+                return
+            }
             var url = '/upload'
             var xhr = new XMLHttpRequest()
             var formData = new FormData()
@@ -232,6 +165,7 @@
                         var row = table.insertRow(0)
                         var cell1 = row.insertCell(0)
                         var cell2 = row.insertCell(1)
+                        var cell3 = row.insertCell(2)
                         cell1.innerHTML = "<img src='" + url + "' width='50px' height='50px'>"
                         cell2.innerHTML = "<a href='" + url + "'>" + url + "</a>"
                         cell3.innerHTML = "<button class='btn btn-secondary btn-outline-dark btn-sm' onclick='deleteLink(" + i + ")'>Delete</button>"
@@ -242,7 +176,6 @@
                     }
 
                 }
-                window.location.reload()
             }
 
         formData.append('file', file)
@@ -272,10 +205,8 @@
             background-color: #f1f1f1;
             border: #369;
         }
-
-
         #drop-area {
-            background-image: url("https://i.danielalas.com/cb902416");
+            background-image: url("https://i.danielalas.com/4012f3fd");
             background-color: rgb(41, 57, 74);
             background-size: cover;
             background-repeat: repeat;
@@ -288,9 +219,15 @@
             right: 0;
             z-index: 9999;
         }
-
         #drop-area.highlight {
             background-color: rgba(31, 29, 74, 0.306);
+        }
+        #main {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
         p {
             margin-top: 0;

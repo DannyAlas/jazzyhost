@@ -1,0 +1,79 @@
+<!-- display a grid of images from the api using bootstrap 5-->
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Fira+Code">
+    <title>Drag and Drop File Uploading</title>
+    <meta charset="UTF-8">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
+</head>
+<script>
+    // get request to the api/all
+    var xhr = new XMLHttpRequest()
+    xhr.open('GET', '/all', true)
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            // if the response is success, display the images
+            console.log(xhr.responseText)
+            var images = JSON.parse(xhr.responseText).urls
+            var imagesHTML = ""
+            for (var i in images) {
+                imagesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + images[i] + '" class="card-img-top" alt="..."></div></div></div>'
+            }
+            document.querySelector('.row').innerHTML = imagesHTML
+            
+        } else {
+            // if the response is error, alert the error message
+            alert("Error getting images")
+        }
+    }
+    xhr.send()
+    // on right click, of a image create a prompt to delete the image
+
+
+
+</script>
+<style>
+    body {
+        font-family: 'Fira Code';
+        background-image:  url("https://i.danielalas.com/4012f3fd");
+        background-repeat: no-repeat;
+        background-color: rgb(41, 57, 74);
+        background-size: cover;
+        background-blend-mode: multiply;
+    }
+    .container {
+        margin-top: 50px;
+    }
+    .card {
+        background-color: rgb(41, 57, 74);
+        border: 1px solid rgb(41, 57, 74);
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px 0px rgba(0,0,0,0.75);
+        width: 19rem;
+    }
+    .card-body {
+        padding: 2px;
+    }
+    .card-img-top {
+        border-radius: 10px;
+    }
+</style>
+<body>
+    <div class="container mt-4">
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <button type="button" class="btn shadow-sm btn-outline-secondary" onclick="window.location.href='/'">Upload</button>
+        </div>
+        <div class="row">
+            <div class="col-auto mb-3">
+                <div class="card" style="width: 18rem;">
+                    <div class="card-body">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
