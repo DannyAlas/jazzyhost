@@ -276,7 +276,7 @@ async def upload(request: Request):
         img = Image.open(file["file"].file)
         log.info(f"upload request: Image size: {img.size}")
         img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, optimize=True, quality=50, format="JPEG")
+        img.save(img_byte_arr, optimize=True, quality=50)
         log.info(
             f"upload request: Optimized image size: {img_byte_arr.getbuffer().nbytes}"
         )
