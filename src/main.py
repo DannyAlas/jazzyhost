@@ -273,7 +273,7 @@ async def upload(request: Request):
 
     if image.extenstion in ["png", "jpg", "jpeg"] and should_optimize:
         # save the image
-        img = Image.open(file["file"].file)
+        img = Image.open(file["file"].file).convert('RGB')
         log.info(f"upload request: Image size: {img.size}")
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, optimize=True, quality=50, format="jpeg")
