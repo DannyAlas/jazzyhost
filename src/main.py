@@ -1,8 +1,11 @@
 import datetime
-import json
-import os
-import uuid
 import io
+import json
+import logging
+import os
+import sys
+import uuid
+
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Request
@@ -12,7 +15,27 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from firebase_admin import auth, credentials, initialize_app, storage
 from google.cloud import firestore
+from google.cloud import logging as google_cloud_logging
 from PIL import Image
+
+logging.basicConfig(
+    level=logging.DEBUG, format="\n%(asctime)s - %(levelname)s: \n%(message)s \n"
+)
+log = logging.getLogger(__name__)
+
+
+def exception_handler(exeption_type, exception, traceback):
+    # set the message to me the last lines of the traceback
+    log.error(
+        f"\tUncaught exception: {exception} \n",
+        exc_info=(exeption_type, exception, traceback),
+    )
+
+
+sys.excepthook = exception_handler
+client = google_cloud_logging.Client()
+client.setup_logging()
+
 
 load_dotenv()
 IMAGES_ENPOINT = "https://i.danielalas.com/"
@@ -101,18 +124,21 @@ async def root(request: Request):
 
 @app.get("/ui", include_in_schema=False)
 async def root(request: Request):
+    log.info(f"ui request: {request}")
     # return static html file
     return HTMLResponse(content=open("./src/static/index.html", "r").read())
 
 
 @app.get("/ui/all", include_in_schema=False)
 async def root(request: Request):
+    log.info(f"all ui request: {request}")
     # return static html file
     return HTMLResponse(content=open("./src/static/all.html", "r").read())
 
 
 @app.get("/ui/login", include_in_schema=False)
 async def login(request: Request):
+    log.info(f"login ui request: {request}")
     cookie = request.cookies.get("session")
     if cookie is not None:
         try:
@@ -125,6 +151,7 @@ async def login(request: Request):
 
 @app.post("/login", include_in_schema=False)
 async def login(request: Request):
+    log.info(f"login request: {request}")
     req_json = await request.json()
     email = req_json["email"]
     password = req_json["password"]
@@ -143,7 +170,7 @@ async def login(request: Request):
         r = requests.post(
             rest_api_url, params={"key": FIREBASE_WEB_API_KEY}, data=payload
         )
-        print(r.text)
+        log.info(f"login attempt: {r.text}")
         token = json.loads(r.text)["idToken"]
         # create session cookie
         cookie = auth.create_session_cookie(
@@ -157,7 +184,7 @@ async def login(request: Request):
         return response
 
     except Exception as e:
-        print(e)
+        log.warning(f"login attempt failed: {e}")
         return HTTPException(
             detail={"message": "There was an error logging in"}, status_code=400
         )
@@ -165,14 +192,16 @@ async def login(request: Request):
 
 @app.get("/ping", include_in_schema=False)
 async def validate(request: Request):
+    log.info(f"ping request: {request}")
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
+        log.info(f"ping request: Valid session cookie: {decoded_claims}")
         return JSONResponse(
             content={"message": "healthy and logged in"}, status_code=200
         )
     except Exception as e:
-        print(e)
+        log.warning(f"ping request: Invalid session cookie")
         return HTTPException(
             detail={"message": "helathy but not logging in"}, status_code=400
         )
@@ -180,12 +209,15 @@ async def validate(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
+    log.info(f"upload request: {request}")
     should_optimize = True
     file = await request.form()
     if file is None or file["file"].size <= 0:
+        log.warning(f"upload request: Missing file")
         return HTTPException(detail={"message": "Error! Missing File"}, status_code=400)
     user_ip = request.headers.get("cf-connecting-ip")
     if user_ip is None:
+        log.warning(f"upload request: Missing user ip")
         return HTTPException(
             detail={"message": "Error! Missing User IP", "headers": request.headers},
             status_code=400,
@@ -201,11 +233,13 @@ async def upload(request: Request):
         uploaded_at=firestore.SERVER_TIMESTAMP,
         last_seen=firestore.SERVER_TIMESTAMP,
     )
+    log.info(f"upload image: {image.to_dict()}")
     # if we verify_session_cookie does not throw an error, we are logged in, add the user id to the image object
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
         image.user_uid = decoded_claims["uid"]
+        log.info(f"upload request: Valid session cookie: {decoded_claims}")
         # if the request contains an optimize key, set the optimize flag to true
         if request.headers.get("optimize") is not None:
             should_optimize = [
@@ -216,6 +250,7 @@ async def upload(request: Request):
     except:
         # limit the user to 10MB file uploads
         if file["file"].size > 10000000:
+            log.warning(f"upload request: File too large")
             return JSONResponse(
                 content={"message": "File is too large"}, status_code=400
             )
@@ -229,6 +264,9 @@ async def upload(request: Request):
             .stream()
         )
         if len(list(query)) >= 10:
+            log.warning(
+                f"upload request: Too many uploads, {user_ip} requests = {len(list(query))}"
+            )
             return HTTPException(
                 detail={"message": "Error! Too many uploads"}, status_code=400
             )
@@ -236,14 +274,22 @@ async def upload(request: Request):
     if image.extenstion in ["png", "jpg", "jpeg"] and should_optimize:
         # save the image
         img = Image.open(file["file"].file)
+        log.info(f"upload request: Image size: {img.size}")
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, optimize=True, quality=50, format=image.extenstion)
+        log.info(
+            f"upload request: Optimized image size: {img_byte_arr.getbuffer().nbytes}"
+        )
         # upload the image
         blob = bucket.blob(image.name)
-        blob.upload_from_string(img_byte_arr.getvalue(), content_type=file["file"].content_type)
+        blob.upload_from_string(
+            img_byte_arr.getvalue(), content_type=file["file"].content_type
+        )
+        log.info(f"upload request: Uploaded image to bucket")
         image.optimized = True
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
+        log.info(f"upload request: Updated database")
         return JSONResponse(
             content={
                 "message": "Successfully uploaded file",
@@ -254,12 +300,15 @@ async def upload(request: Request):
         )
     else:
         # upload the image
+        log.info(f"upload request: Not optimizing file")
         blob = bucket.blob(image.name)
         blob.upload_from_string(
             file["file"].file.read(), content_type=file["file"].content_type
         )
+        log.info(f"upload request: Uploaded image to bucket")
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
+        log.info(f"upload request: Updated database")
         return JSONResponse(
             content={
                 "message": "Successfully uploaded file",
@@ -273,19 +322,23 @@ async def upload(request: Request):
 # delete file
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str, request: Request):
+    log.info(f"delete request: {request}")
     try:
         cookie = request.cookies.get("session")
-        auth.verify_session_cookie(cookie, check_revoked=True)
-        print(filename)
+        decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
+        log.info(f"delete request: Valid session cookie: {decoded_claims}")
         blob = bucket.blob(filename)
-        blob.delete()
         if blob is None:
+            log.warning(f"delete request: File does not exist IN STORAGE, {filename}")
             return JSONResponse(
                 content={"message": "File does not exist"}, status_code=400
             )
+        blob.delete()
+        log.info(f"delete request: Deleted file from bucket")
 
         db_file = db.collection("files").document(filename).get()
         if db_file is None:
+            log.warning(f"delete request: File does not exist IN DB, {filename}")
             return JSONResponse(
                 content={"message": "File does not exist"}, status_code=400
             )
@@ -296,7 +349,7 @@ async def delete_file(filename: str, request: Request):
             content={"message": "Successfully deleted file"}, status_code=200
         )
     except Exception as e:
-        print(e)
+        log.warning(f"delete request: {e}")
         return JSONResponse(
             content={"message": "There was an error deleting the file"}, status_code=400
         )
@@ -304,13 +357,12 @@ async def delete_file(filename: str, request: Request):
 
 @app.get("/all")
 async def get_all(request: Request):
+    log.info(f"get all request: {request}")
     try:
         urls = []
         files = db.collection("files").get()
-
         if len(files) > 100:
-            # crash the server, just in case spam uploads
-            files = fil  # type: ignore
+            log.error(f"!!!!!!!!!!Too many file - {len(files)} !!!!!!!!!!!")
 
         # sort files by upload date
         try:
@@ -318,6 +370,7 @@ async def get_all(request: Request):
                 files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True
             )
         except:
+            log.warning(f"Failed to sort files: \n{[f.to_dict() for f in files]}\n")
             pass
         for f in files:
             urls.append(f.to_dict()["url"])
@@ -325,85 +378,3 @@ async def get_all(request: Request):
         return JSONResponse(content={"urls": urls}, status_code=200)
     except Exception as e:
         return HTTPException(detail={"message": str(e)}, status_code=401)
-
-
-# create a background task to compress images every 5 minutes
-# async def compress_images():
-#     if not os.path.exists("tmp"):
-#         os.mkdir("tmp")
-#     while True:
-#         try:
-#             images = db.collection("files").get()
-
-#             for image in images:
-#                 if image.to_dict().get("optimized") or image.to_dict().get("extenstion") not in ["jpg", "jpeg", "png"]:
-#                     continue
-#                 # check if the image link is valid
-#                 try:
-
-#                     name = f"tmp/{image.to_dict()['name']}.{image.to_dict()['extenstion']}"
-#                     # download the image
-#                     with requests.get(image.to_dict()["url"], stream=True) as r:
-#                         r.raise_for_status()
-#                         with open(name, "wb") as f:
-#                             for chunk in r.iter_content(chunk_size=8192):
-#                                 f.write(chunk)
-
-#                     # open the image
-#                     img = Image.open(name)
-#                     # save the image
-#                     img.save(name, optimize=True, quality=50)
-#                     # upload the image
-#                     blob = bucket.blob(image.to_dict()["name"])
-#                     blob.upload_from_filename(name)
-#                     # update the database
-#                     db.collection("files").document(image.id).update({"optimized": True})
-#                     # delete the image
-#                     os.remove(name)
-#                 except Exception as e:
-#                     print(e)
-#                     continue
-#             await asyncio.sleep(1800)
-#         except Exception as e:
-#             print(e)
-#             await asyncio.sleep(1800)
-
-# async def sync_st_db():
-#     """
-#     Syncs the firestore database with the storage bucket once a day
-#     """
-#     while True:
-
-#         blobs = bucket.list_blobs()
-#         files = db.collection("files").get()
-#         print("Syncing database with storage bucket")
-#         for blob in blobs:
-#             if blob.name not in [file.id for file in files]:
-#                 db.collection("files").add({
-#                     "name": blob.name,
-#                     "url": f"{IMAGES_ENPOINT}{blob.name}",
-#                     "extenstion": blob.content_type.split("/")[1],
-#                     "optimized": False,
-#                     "uploaded": firestore.SERVER_TIMESTAMP
-#                     }, document_id=blob.name)
-
-#         for file in files:
-#             print(file.to_dict())
-#             # if the file doesn't have the same attributes as ImageModel print it
-#             if not all([key in file.to_dict() for key in ImageModel.__dict__.keys()]):
-#                 fdict = file.to_dict()
-#                 try:
-#                     new = ImageModel(name=fdict["name"], url=fdict["url"], extenstion=fdict["extenstion"], optimized=fdict["optimized"], uploaded_at=fdict["uploaded"], last_seen=fdict["uploaded"], user_ip="", user_uid="")
-#                     db.collection("files").document(file.id).set(new.to_dict())
-#                 except Exception as e:
-#                     print(e)
-#                     continue
-
-
-#         await asyncio.sleep(100)
-
-# @app.on_event("startup")
-# async def startup_event():
-#     # create a background task to compress images every 5 minutes
-#     futures = [sync_st_db()]
-#     asyncio.ensure_future(asyncio.gather(*futures))
