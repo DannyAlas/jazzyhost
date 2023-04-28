@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from firebase_admin import auth, credentials, initialize_app, storage
 from google.cloud import firestore
-from google.cloud import logging as google_cloud_logging
+# from google.cloud import logging as google_cloud_logging
 from PIL import Image
 
 logging.basicConfig(
@@ -33,8 +33,8 @@ def exception_handler(exeption_type, exception, traceback):
 
 
 sys.excepthook = exception_handler
-client = google_cloud_logging.Client()
-client.setup_logging()
+# client = google_cloud_logging.Client()
+# client.setup_logging()
 
 
 load_dotenv()
