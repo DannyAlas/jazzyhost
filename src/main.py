@@ -124,21 +124,21 @@ async def root(request: Request):
 
 @app.get("/ui", include_in_schema=False)
 async def root(request: Request):
-    log.info(f"ui request: {request}")
+    log.info(f"ui request: {request.headers}")
     # return static html file
     return HTMLResponse(content=open("./src/static/index.html", "r").read())
 
 
 @app.get("/ui/all", include_in_schema=False)
 async def root(request: Request):
-    log.info(f"all ui request: {request}")
+    log.info(f"all ui request: {request.headers}")
     # return static html file
     return HTMLResponse(content=open("./src/static/all.html", "r").read())
 
 
 @app.get("/ui/login", include_in_schema=False)
 async def login(request: Request):
-    log.info(f"login ui request: {request}")
+    log.info(f"login ui request: {request.headers}")
     cookie = request.cookies.get("session")
     if cookie is not None:
         try:
@@ -151,7 +151,7 @@ async def login(request: Request):
 
 @app.post("/login", include_in_schema=False)
 async def login(request: Request):
-    log.info(f"login request: {request}")
+    log.info(f"login request: {request.headers}")
     req_json = await request.json()
     email = req_json["email"]
     password = req_json["password"]
@@ -192,7 +192,7 @@ async def login(request: Request):
 
 @app.get("/ping", include_in_schema=False)
 async def validate(request: Request):
-    log.info(f"ping request: {request}")
+    log.info(f"ping request: {request.headers}")
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
@@ -209,7 +209,7 @@ async def validate(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
-    log.info(f"upload request: {request}")
+    log.info(f"upload request: {request.headers}")
     should_optimize = True
     file = await request.form()
     if file is None or file["file"].size <= 0:
@@ -276,7 +276,7 @@ async def upload(request: Request):
         img = Image.open(file["file"].file)
         log.info(f"upload request: Image size: {img.size}")
         img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, optimize=True, quality=50)
+        img.save(img_byte_arr, optimize=True, quality=50, format="jpeg")
         log.info(
             f"upload request: Optimized image size: {img_byte_arr.getbuffer().nbytes}"
         )
@@ -322,7 +322,7 @@ async def upload(request: Request):
 # delete file
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str, request: Request):
-    log.info(f"delete request: {request}")
+    log.info(f"delete request: {request.headers}")
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
@@ -357,7 +357,7 @@ async def delete_file(filename: str, request: Request):
 
 @app.get("/all")
 async def get_all(request: Request):
-    log.info(f"get all request: {request}")
+    log.info(f"get all request: {request.headers}")
     try:
         urls = []
         files = db.collection("files").get()
