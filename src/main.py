@@ -6,6 +6,7 @@ import os
 import sys
 import uuid
 
+import axiom
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Request
@@ -15,19 +16,33 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from firebase_admin import auth, credentials, initialize_app, storage
 from google.cloud import firestore
-# from google.cloud import logging as google_cloud_logging
 from PIL import Image
 
+from .logging import AxiomHandler
+
+load_dotenv()
+
 logging.basicConfig(
-    level=logging.DEBUG, format="\n%(asctime)s - %(levelname)s: \n%(message)s \n"
+    level=logging.DEBUG, format="%(asctime)s - %(levelname)s: %(message)s"
 )
+
 log = logging.getLogger(__name__)
+
+# set the handler to send logs to axiom
+axiom_token = os.getenv("AXIOM_API_TOKEN")
+if axiom_token is None:
+    raise ValueError("AXIOM_API_TOKEN not set")
+ax_client = axiom.Client(
+    token=os.getenv("AXIOM_API_TOKEN"), org_id=os.getenv("AXIOM_ORG_ID")
+)
+axiom_handler = AxiomHandler(ax_client, "logs", level=logging.DEBUG, interval=1)
+log.addHandler(axiom_handler)
 
 
 def exception_handler(exeption_type, exception, traceback):
     # set the message to me the last lines of the traceback
     log.error(
-        f"\tUncaught exception: {exception} \n",
+        f"Uncaught exception: {exception}",
         exc_info=(exeption_type, exception, traceback),
     )
 
@@ -36,8 +51,6 @@ sys.excepthook = exception_handler
 # client = google_cloud_logging.Client()
 # client.setup_logging()
 
-
-load_dotenv()
 IMAGES_ENPOINT = "https://i.danielalas.com/"
 env_creds = {
     "type": os.getenv("TYPE"),
@@ -124,21 +137,21 @@ async def root(request: Request):
 
 @app.get("/ui", include_in_schema=False)
 async def root(request: Request):
-    log.info(f"ui request: {request.headers}")
+    log.info(f"ui request {request.headers}")
     # return static html file
     return HTMLResponse(content=open("./src/static/index.html", "r").read())
 
 
 @app.get("/ui/all", include_in_schema=False)
 async def root(request: Request):
-    log.info(f"all ui request: {request.headers}")
+    log.info(f"all ui request {request.headers}")
     # return static html file
     return HTMLResponse(content=open("./src/static/all.html", "r").read())
 
 
 @app.get("/ui/login", include_in_schema=False)
 async def login(request: Request):
-    log.info(f"login ui request: {request.headers}")
+    log.info(f"login ui request {request.headers}")
     cookie = request.cookies.get("session")
     if cookie is not None:
         try:
@@ -151,7 +164,7 @@ async def login(request: Request):
 
 @app.post("/login", include_in_schema=False)
 async def login(request: Request):
-    log.info(f"login request: {request.headers}")
+    log.info(f"login request {request.headers}")
     req_json = await request.json()
     email = req_json["email"]
     password = req_json["password"]
@@ -192,7 +205,7 @@ async def login(request: Request):
 
 @app.get("/ping", include_in_schema=False)
 async def validate(request: Request):
-    log.info(f"ping request: {request.headers}")
+    log.info(f"ping request {request.headers}")
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
@@ -209,7 +222,7 @@ async def validate(request: Request):
 
 @app.post("/upload")
 async def upload(request: Request):
-    log.info(f"upload request: {request.headers}")
+    log.info(f"upload request {request.headers}")
     should_optimize = True
     file = await request.form()
     if file is None or file["file"].size <= 0:
@@ -273,7 +286,7 @@ async def upload(request: Request):
 
     if image.extenstion in ["png", "jpg", "jpeg"] and should_optimize:
         # save the image
-        img = Image.open(file["file"].file).convert('RGB')
+        img = Image.open(file["file"].file).convert("RGB")
         log.info(f"upload request: Image size: {img.size}")
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, optimize=True, quality=50, format="jpeg")
@@ -322,7 +335,7 @@ async def upload(request: Request):
 # delete file
 @app.delete("/delete/{filename}")
 async def delete_file(filename: str, request: Request):
-    log.info(f"delete request: {request.headers}")
+    log.info(f"delete request {request.headers}")
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
@@ -357,7 +370,7 @@ async def delete_file(filename: str, request: Request):
 
 @app.get("/all")
 async def get_all(request: Request):
-    log.info(f"get all request: {request.headers}")
+    log.info(f"get all request {request.headers}")
     try:
         urls = []
         files = db.collection("files").get()
