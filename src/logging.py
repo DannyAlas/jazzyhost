@@ -26,7 +26,6 @@ class AxiomHandler(Handler):
         self.buffer = []
         self.last_run = time.time()
         self.interval = interval
-        print(self.__dict__)
 
         # register flush on exit,
         atexit.register(self.flush)

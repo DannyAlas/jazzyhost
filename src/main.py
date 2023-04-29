@@ -46,10 +46,7 @@ def exception_handler(exeption_type, exception, traceback):
         exc_info=(exeption_type, exception, traceback),
     )
 
-
 sys.excepthook = exception_handler
-# client = google_cloud_logging.Client()
-# client.setup_logging()
 
 IMAGES_ENPOINT = "https://i.danielalas.com/"
 env_creds = {
@@ -380,7 +377,7 @@ async def get_all(request: Request):
         # sort files by upload date
         try:
             files = sorted(
-                files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True
+                files, key=lambda x: x.to_dict()["uploaded_at"], reverse=False
             )
         except:
             log.warning(f"Failed to sort files: \n{[f.to_dict() for f in files]}\n")
