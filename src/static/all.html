@@ -72,6 +72,9 @@
                 <div class="item"></div>
             </div>
             <div class="container mt-4" id="main">
+                <div class="position-fixed top-0 end-0 p-5">
+                    <a href="https://danielalas.com" class="btn shadow-sm btn-outline-secondary">My Site</a>
+                </div>
                 <div class="row">
                     <div class="col-auto mb-3">
                         <div class="card" style="width: 18rem;">
@@ -87,6 +90,17 @@
         </div>
     </body>
     <script>
+        // on page load if we have a session cookie, add a delete item to the context menu
+        window.onload = function() {
+            // we don't care if it's a valid session, i'm just check that here in plain js, backends job
+            if (document.cookie.includes("session=")) {
+                var item = document.createElement("div");
+                item.classList.add("item");
+                item.textContent = "Delete";
+                document.getElementById("context-menu").appendChild(item);
+            }
+        }
+
         // get request to the api/all
         var xhr = new XMLHttpRequest()
         xhr.open('GET', '/all', true)
@@ -94,13 +108,30 @@
         xhr.onload = function() {
             if (xhr.status === 200) {
                 // if the response is success, parse the json response
-                var images = JSON.parse(xhr.responseText).urls
-                var imagesHTML = ""
-                // loop backwords through the images array 
-                for (i = images.length - 1; i >= 0; i--) {
-                    imagesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + images[i] + '" class="card-img-top" alt="..."></div></div></div>'
+                var files = JSON.parse(xhr.responseText).files
+                var filesHTML = ""
+                // loop through the files array
+                for (var i = 0; i < files.length; i++) {
+                    // if the file object extension is an image, add it to the filesHTML string as an image
+                    if (files[i].extension == "png" || files[i].extension == "jpg" || files[i].extension == "jpeg" || files[i].extension == "gif") {
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
+                    } else if (files[i].extension == "mp4" || files[i].extension == "webm" || files[i].extension == "ogg" || files[i].extension == "mov" || files[i].extension == "avi" || files[i].extension == "wmv" || files[i].extension == "flv" || files[i].extension == "mkv") {
+                        // if the file object extension is a video, add it to the filesHTML string as a video
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><video width="320" height="240" controls><source src="' + files[i].url + '" type="video/mp4"></video></div></div></div>'
+                    } else if (files[i].extension == "mp3" || files[i].extension == "wav") {
+                        // if the file object extension is an audio file, add it to the filesHTML string as an audio file
+                        // make sure to center the audio player
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><audio controls><source src="' + files[i].url + '" type="audio/mpeg"></audio></div></div></div>'
+                        
+                    } else if (files[i].extension == "webp" || files[i].extension == "svg") {
+                        // if the file object extension is a webp or svg, add it to the filesHTML string as an image
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
+                    } else {
+                        // if the file object extension is not an image, video, audio, or webp/svg, add it to the filesHTML string as a link
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link">' + files[i].name + '</a></div></div></div>'
+                    }
                 }
-                document.querySelector('.row').innerHTML = imagesHTML
+                document.querySelector('.row').innerHTML = filesHTML
                 
             } else {
                 console.log(xhr.responseText)
@@ -116,7 +147,7 @@
         
         document.addEventListener("contextmenu", (e) => {
             // if we're over an image, show the context menu
-            if (e.target.tagName === "IMG") {
+            if (e.target.tagName === "IMG" || e.target.tagName === "VIDEO" || e.target.tagName === "AUDIO") {
                 e.preventDefault();
                 const { clientX: mouseX, clientY: mouseY } = e;
                 clickImg = e.target;
@@ -127,11 +158,6 @@
                 contextMenu.style.display = "block";
                 if (document.cookie.includes("session=")) {
                     contextMenu.querySelector(".item").textContent = "Open"
-                    // add another item to the context menu
-                    const item = document.createElement("div");
-                    item.classList.add("item");
-                    item.textContent = "Delete";
-                    contextMenu.appendChild(item);
                 } else {
                     contextMenu.querySelector(".item").textContent = "Open"
                 }
@@ -148,7 +174,12 @@
         // on click of the delete button, log the image url
         document.addEventListener("click", (e) => {
             if (e.target.classList.contains("item")) {
-                imgName = clickImg.src.split("/").pop();
+                console.log(clickImg)
+
+                // if we clicked on a audio or video file, get the source url
+                if (clickImg.tagName === "VIDEO" || clickImg.tagName === "AUDIO") {
+                    clickImg = clickImg.querySelector("source")
+                }
                 // get the item text
                 const { innerText } = e.target;
                 // if the item text is delete and we have a session cookie

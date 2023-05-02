@@ -83,7 +83,7 @@ class ImageModel:
     def __init__(
         self,
         name,
-        extenstion,
+        extension,
         url,
         user_ip,
         user_uid,
@@ -92,7 +92,7 @@ class ImageModel:
         last_seen,
     ):
         self.name = name
-        self.extenstion = extenstion
+        self.extension = extension
         self.url = url
         self.user_ip = user_ip
         self.user_uid = user_uid
@@ -104,7 +104,7 @@ class ImageModel:
         """Return the dict representation of the image replacing sentinel values with strings"""
         return {
             "name": self.name,
-            "extenstion": self.extenstion,
+            "extension": self.extension,
             "url": self.url,
             "user_ip": self.user_ip,
             "user_uid": self.user_uid,
@@ -116,7 +116,7 @@ class ImageModel:
     def to_dict(self):
         return {
             "name": self.name,
-            "extenstion": self.extenstion,
+            "extension": self.extension,
             "url": self.url,
             "user_ip": self.user_ip,
             "user_uid": self.user_uid,
@@ -228,14 +228,15 @@ async def upload(request: Request):
     user_ip = request.headers.get("cf-connecting-ip")
     if user_ip is None:
         log.warning(f"upload request: Missing user ip")
-        return HTTPException(
-            detail={"message": "Error! Missing User IP", "headers": request.headers},
-            status_code=400,
-        )
+        
+        # return HTTPException(
+        #     detail={"message": "Error! Missing User IP", "headers": request.headers},
+        #     status_code=400,
+        # )
     name = str(uuid.uuid4())[:8]
     image = ImageModel(
         name=name,
-        extenstion=file["file"].filename.split(".")[-1],
+        extension=file["file"].filename.split(".")[-1],
         url=f"{IMAGES_ENPOINT}{name}",
         user_ip=user_ip,
         user_uid=None,
@@ -281,7 +282,7 @@ async def upload(request: Request):
                 detail={"message": "Error! Too many uploads"}, status_code=400
             )
 
-    if image.extenstion in ["png", "jpg", "jpeg"] and should_optimize:
+    if image.extension in ["png", "jpg", "jpeg"] and should_optimize:
         # save the image
         img = Image.open(file["file"].file).convert("RGB")
         log.info(f"upload request: Image size: {img.size}")
@@ -369,7 +370,7 @@ async def delete_file(filename: str, request: Request):
 async def get_all(request: Request):
     log.info(f"get all request {request.headers}")
     try:
-        urls = []
+        files_list = []
         files = db.collection("files").get()
         
         if len(files) > 100:
@@ -378,7 +379,7 @@ async def get_all(request: Request):
         # sort files by upload date
         try:
             files = sorted(
-                files, key=lambda x: x.to_dict()["uploaded_at"], reverse=False
+                files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True
             )
             
         except:
@@ -386,10 +387,15 @@ async def get_all(request: Request):
             pass
         for f in files:
             try:
-                urls.append(f.to_dict()["url"])
+                # serialize the file object DateTime object
+                f_dict = f.to_dict()
+                for key, value in f_dict.items():
+                    if isinstance(value, datetime.datetime):
+                        f_dict[key] = value.isoformat()
+                files_list.append(f_dict)
             except:
                 log.warning(f"Failed to get url for file: {f.to_dict()}")
 
-        return JSONResponse(content={"urls": urls}, status_code=200)
+        return JSONResponse(content={"files": files_list}, status_code=200)
     except Exception as e:
         return HTTPException(detail={"message": str(e)}, status_code=401)

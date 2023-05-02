@@ -13,6 +13,9 @@
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
     </head>
     <div id="drop-area">
+        <div class="text-right fixed-top mt-5 mr-5">
+            <a href="https://danielalas.com" class="btn shadow-sm btn-outline-secondary">My Site</a>
+        </div>
         <div class="container">
             <div class="row">
                 <div class="col-md-6 mx-auto" id="main">
@@ -119,7 +122,7 @@
         function uploadFile(file, i) {
             // assert file has a valid extension
             var ext = file.name.split('.').pop()
-            if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'gif') {
+            if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'gif' && ext != 'webp' && ext != 'svg' && ext != 'webm' && ext != 'mp4' && ext != 'mov' && ext != 'avi' && ext != 'mpg' && ext != 'mpeg' && ext != 'wmv' && ext != 'flv' && ext != 'mkv' && ext != 'mp3' && ext != 'wav' && ext != 'aac' && ext != 'ogg' ) {
                 alert('Invalid file type. Please upload an image.')
                 progressBar.style.visibility = 'hidden'
                 return
