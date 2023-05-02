@@ -126,6 +126,7 @@
                 contextMenu.style.left = `${mouseX}px`;
                 contextMenu.style.display = "block";
                 if (document.cookie.includes("session=")) {
+                    contextMenu.querySelector(".item").textContent = "Open"
                     contextMenu.querySelector(".item").textContent = "Delete"
                 } else {
                     contextMenu.querySelector(".item").textContent = "Open"
@@ -144,7 +145,10 @@
         document.addEventListener("click", (e) => {
             if (e.target.classList.contains("item")) {
                 imgName = clickImg.src.split("/").pop();
-                if (document.cookie.includes("session=")) {
+                // get the item text
+                const { innerText } = e.target;
+                // if the item text is delete and we have a session cookie
+                if (document.cookie.includes("session=") && innerText === "Delete") {
                     // send a delete request to the api
                     var xhr = new XMLHttpRequest()
                     xhr.open('DELETE', `/delete/${imgName}`, true)
@@ -159,7 +163,7 @@
                         }
                     }
                     xhr.send()
-                } else {
+                } else if (innerText === "Open") {
                     // if we don't have a session cookie open the image in a new tab
                     window.open(clickImg.src, "_blank");
                 }
