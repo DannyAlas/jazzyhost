@@ -127,7 +127,11 @@
                 contextMenu.style.display = "block";
                 if (document.cookie.includes("session=")) {
                     contextMenu.querySelector(".item").textContent = "Open"
-                    contextMenu.querySelector(".item").textContent = "Delete"
+                    // add another item to the context menu
+                    const item = document.createElement("div");
+                    item.classList.add("item");
+                    item.textContent = "Delete";
+                    contextMenu.appendChild(item);
                 } else {
                     contextMenu.querySelector(".item").textContent = "Open"
                 }
