@@ -117,7 +117,9 @@
                         filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
                     } else if (files[i].extension == "mp4" || files[i].extension == "webm" || files[i].extension == "ogg" || files[i].extension == "mov" || files[i].extension == "avi" || files[i].extension == "wmv" || files[i].extension == "flv" || files[i].extension == "mkv") {
                         // if the file object extension is a video, add it to the filesHTML string as a video
-                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><video width="320" height="240" controls><source src="' + files[i].url + '" type="video/mp4"></video></div></div></div>'
+                        // make the card body a video player but make sure it doesn't get larger than 100% width
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><video controls style="max-width: 100%;"><source src="' + files[i].url + '" type="video/mp4"></video></div></div></div>'
+
                     } else if (files[i].extension == "mp3" || files[i].extension == "wav") {
                         // if the file object extension is an audio file, add it to the filesHTML string as an audio file
                         // make sure to center the audio player
@@ -180,6 +182,10 @@
                 if (clickImg.tagName === "VIDEO" || clickImg.tagName === "AUDIO") {
                     clickImg = clickImg.querySelector("source")
                 }
+
+                // get the image name from the url
+                var imgName = clickImg.src.split("/").pop();
+
                 // get the item text
                 const { innerText } = e.target;
                 // if the item text is delete and we have a session cookie

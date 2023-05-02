@@ -156,7 +156,7 @@
                         // get the url from the response
                         var url = JSON.parse(xhr.responseText).url
                         // open the url in a new tab but don't focus on it
-                        window.open(url, '_blank').blur()
+                        window.open(url, '_blank')
                         // redirect the current ui/all page and focus on it
                         window.focus()
                         window.location.href = '/ui/all'
