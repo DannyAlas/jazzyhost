@@ -371,19 +371,24 @@ async def get_all(request: Request):
     try:
         urls = []
         files = db.collection("files").get()
+        
         if len(files) > 100:
-            log.error(f"!!!!!!!!!!Too many file - {len(files)} !!!!!!!!!!!")
+            log.error(f"!!!!!!!!!!Too many files - {len(files)} !!!!!!!!!!!")
 
         # sort files by upload date
         try:
             files = sorted(
                 files, key=lambda x: x.to_dict()["uploaded_at"], reverse=False
             )
+            
         except:
             log.warning(f"Failed to sort files: \n{[f.to_dict() for f in files]}\n")
             pass
         for f in files:
-            urls.append(f.to_dict()["url"])
+            try:
+                urls.append(f.to_dict()["url"])
+            except:
+                log.warning(f"Failed to get url for file: {f.to_dict()}")
 
         return JSONResponse(content={"urls": urls}, status_code=200)
     except Exception as e:
