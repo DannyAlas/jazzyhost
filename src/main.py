@@ -399,3 +399,15 @@ async def get_all(request: Request):
         return JSONResponse(content={"files": files_list}, status_code=200)
     except Exception as e:
         return HTTPException(detail={"message": str(e)}, status_code=401)
+
+@app.get("/random")
+def get_random_image(request: Request):
+    import random
+    log.info(f"get random request {request.headers}")
+    try:
+        files = db.collection("files").get()
+        files = [f.to_dict() for f in files]
+        random_file = random.choice(files)
+        return RedirectResponse(url=random_file["url"], status_code=302)
+    except Exception as e:
+        return HTTPException(detail={"message": str(e)}, status_code=401)
