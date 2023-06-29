@@ -128,20 +128,16 @@
                     } else if (files[i].extension == "webp" || files[i].extension == "svg") {
                         // if the file object extension is a webp or svg, add it to the filesHTML string as an image
                         filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
-                    } else if (files[i].extension == "zip") {
+                    } else {
                         // if the file object extension is a zip check the thumbnail url
                         if (files[i].thumbnail == null) {
                             // if the thumbnail url is null, add it to the filesHTML string as a link
                             filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link">' + files[i].name + '</a></div></div></div>'
                         } else {
-                            // if the thumbnail url is not null, add it to the filesHTML string as an image
-                            filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].thumbnail + '" class="card-img-top" alt="..."></div></div></div>'
+                            // if the thumbnail url is not null, add it to the filesHTML string as an image but make it a link to the file
+                            filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link"><img src="' + files[i].thumbnail + '" class="card-img-top" alt="..."></a></div></div></div>'
                         }
                     } 
-                    else {
-                        // if the file object extension is not an image, video, audio, or webp/svg, add it to the filesHTML string as a link
-                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link">' + files[i].name + '</a></div></div></div>'
-                    }
                 }
                 document.querySelector('.row').innerHTML = filesHTML
                 
@@ -158,8 +154,9 @@
         var clickImg = null;
         
         document.addEventListener("contextmenu", (e) => {
-            // if we're over an image, show the context menu
-            if (e.target.tagName === "IMG" || e.target.tagName === "VIDEO" || e.target.tagName === "AUDIO") {
+            if (e.target.offsetParent.querySelector("a") !== null) {
+                return;
+            }else if (e.target.tagName === "IMG" || e.target.tagName === "VIDEO" || e.target.tagName === "AUDIO") {
                 e.preventDefault();
                 const { clientX: mouseX, clientY: mouseY } = e;
                 clickImg = e.target;
@@ -173,8 +170,7 @@
                 } else {
                     contextMenu.querySelector(".item").textContent = "Open"
                 }
-            }
-           
+            } 
         });
 
         document.addEventListener("click", (e) => {
@@ -186,13 +182,12 @@
         // on click of the delete button, log the image url
         document.addEventListener("click", (e) => {
             if (e.target.classList.contains("item")) {
-                console.log(clickImg)
-
+                
                 // if we clicked on a audio or video file, get the source url
                 if (clickImg.tagName === "VIDEO" || clickImg.tagName === "AUDIO") {
                     clickImg = clickImg.querySelector("source")
+                    console.log(clickImg)
                 }
-
                 // get the image name from the url
                 var imgName = clickImg.src.split("/").pop();
 
