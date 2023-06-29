@@ -128,7 +128,17 @@
                     } else if (files[i].extension == "webp" || files[i].extension == "svg") {
                         // if the file object extension is a webp or svg, add it to the filesHTML string as an image
                         filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
-                    } else {
+                    } else if (files[i].extension == "zip") {
+                        // if the file object extension is a zip check the thumbnail url
+                        if (files[i].thumbnail == null) {
+                            // if the thumbnail url is null, add it to the filesHTML string as a link
+                            filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link">' + files[i].name + '</a></div></div></div>'
+                        } else {
+                            // if the thumbnail url is not null, add it to the filesHTML string as an image
+                            filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].thumbnail + '" class="card-img-top" alt="..."></div></div></div>'
+                        }
+                    } 
+                    else {
                         // if the file object extension is not an image, video, audio, or webp/svg, add it to the filesHTML string as a link
                         filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link">' + files[i].name + '</a></div></div></div>'
                     }

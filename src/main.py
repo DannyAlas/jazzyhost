@@ -90,6 +90,7 @@ class ImageModel:
         optimized,
         uploaded_at,
         last_seen,
+        confirmed,
     ):
         self.name = name
         self.extension = extension
@@ -99,6 +100,7 @@ class ImageModel:
         self.optimized = optimized
         self.uploaded_at = uploaded_at
         self.last_seen = last_seen
+        self.confirmed = confirmed
 
     def to_encodable_dict(self):
         """Return the dict representation of the image replacing sentinel values with strings"""
@@ -221,8 +223,28 @@ async def validate(request: Request):
 async def upload(request: Request):
     log.info(f"upload request {request.headers}")
     should_optimize = True
-    file = await request.form()
-    if file is None or file["file"].size <= 0:
+    _file = await request.form()
+    # unpack file from form
+    file = {}
+    for key in _file.keys():
+        if key == "size":
+            file[key] = int(_file[key])
+        if key == "file":
+            file[key] = _file[key]
+        if key == "lastModified":
+            file[key] = int(_file[key])
+        if key == "name":
+            file[key] = _file[key]
+        if key == "type":
+            file[key] = _file[key]
+        if key == "webkitRelativePath":
+            file[key] = _file[key]
+        if key == "lastModifiedDate":
+            file[key] = datetime.datetime.strptime(
+                _file[key], "%a %b %d %Y %H:%M:%S GMT%z (%Z)"
+            )
+        
+    if file is None or file["size"] == 0:
         log.warning(f"upload request: Missing file")
         return HTTPException(detail={"message": "Error! Missing File"}, status_code=400)
     user_ip = request.headers.get("cf-connecting-ip")
@@ -234,15 +256,17 @@ async def upload(request: Request):
         #     status_code=400,
         # )
     name = str(uuid.uuid4())[:8]
+    ext = file["name"].split(".")[-1]
     image = ImageModel(
-        name=name,
-        extension=file["file"].filename.split(".")[-1],
+        name=name + "." + ext,
+        extension=ext,
         url=f"{IMAGES_ENPOINT}{name}",
         user_ip=user_ip,
         user_uid=None,
         optimized=False,
         uploaded_at=firestore.SERVER_TIMESTAMP,
         last_seen=firestore.SERVER_TIMESTAMP,
+        confirmed=False,
     )
     log.info(f"upload image: {image.to_dict()}")
     # if we verify_session_cookie does not throw an error, we are logged in, add the user id to the image object
@@ -260,7 +284,7 @@ async def upload(request: Request):
             ][0]
     except:
         # limit the user to 10MB file uploads
-        if file["file"].size > 10000000:
+        if file["size"] > 10000000:
             log.warning(f"upload request: File too large")
             return JSONResponse(
                 content={"message": "File is too large"}, status_code=400
@@ -284,19 +308,18 @@ async def upload(request: Request):
 
     if image.extension in ["png", "jpg", "jpeg"] and should_optimize:
         # save the image
-        img = Image.open(file["file"].file).convert("RGB")
-        log.info(f"upload request: Image size: {img.size}")
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, optimize=True, quality=50, format="jpeg")
-        log.info(
-            f"upload request: Optimized image size: {img_byte_arr.getbuffer().nbytes}"
-        )
+        # img = Image.open(file["file"].file).convert("RGB")
+        # log.info(f"upload request: Image size: {img.size}")
+        # img_byte_arr = io.BytesIO()
+        # img.save(img_byte_arr, optimize=True, quality=50, format="jpeg")
+        # log.info(
+        #     f"upload request: Optimized image size: {img_byte_arr.getbuffer().nbytes}"
+        # )
         # upload the image
         blob = bucket.blob(image.name)
-        blob.upload_from_string(
-            img_byte_arr.getvalue(), content_type=file["file"].content_type
-        )
-        log.info(f"upload request: Uploaded image to bucket")
+        signed_url = blob.generate_signed_url(datetime.timedelta(seconds=300), method="PUT")
+        print(signed_url)
+        log.info(f"Signed URL created")
         image.optimized = True
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
@@ -304,7 +327,7 @@ async def upload(request: Request):
         return JSONResponse(
             content={
                 "message": "Successfully uploaded file",
-                "url": image.url,
+                "signed_url": signed_url,
                 "image_params": image.to_encodable_dict(),
             },
             status_code=200,
@@ -329,6 +352,27 @@ async def upload(request: Request):
             status_code=200,
         )
 
+
+app.post("/confirm/{filename}")
+async def confirm_file(filename: str, request: Request):
+    log.info(f"confirm request {request.headers}")
+    try:
+        db_file = db.collection("files").document(filename).get()
+        if db_file is None:
+            log.warning(f"confirm request: File does not exist IN DATABASE, {filename}")
+            return JSONResponse(
+                content={"message": "File does not exist"}, status_code=400
+            )
+        db.collection("files").document(filename).update({"confirmed": True})
+        log.info(f"confirm request: Updated database")
+        return JSONResponse(
+            content={"message": "Successfully confirmed file"}, status_code=200
+        )
+    except:
+        log.warning(f"confirm request: Server Error")
+        return JSONResponse(
+            content={"message": "Server Error"}, status_code=400
+        )
 
 # delete file
 @app.delete("/delete/{filename}")
