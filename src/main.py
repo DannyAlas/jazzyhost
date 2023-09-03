@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import re
 import sys
 import uuid
 
@@ -12,7 +13,7 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from firebase_admin import auth, credentials, initialize_app, storage
 from google.cloud import firestore
@@ -46,8 +47,9 @@ def exception_handler(exeption_type, exception, traceback):
         exc_info=(exeption_type, exception, traceback),
     )
 
-sys.excepthook = exception_handler
 
+sys.excepthook = exception_handler
+STORAGE_FOLDER = os.getenv("STORAGE_FOLDER")
 IMAGES_ENPOINT = "https://i.danielalas.com/"
 env_creds = {
     "type": os.getenv("TYPE"),
@@ -65,7 +67,7 @@ env_creds = {
 cred = credentials.Certificate(env_creds)
 firebase = initialize_app(cred)
 db = firestore.Client.from_service_account_info(env_creds)
-bucket = storage.bucket(name=os.getenv("STORAGEBUCKET"))
+# bucket = storage.bucket(name=os.getenv("STORAGEBUCKET"))
 app = FastAPI()
 backgound_tasks = BackgroundTasks()
 allow_all = ["*"]
@@ -128,40 +130,54 @@ class ImageModel:
         }
 
 
-# on the root endpoint, return the ui if there is nothing after the slash
-@app.get("/")
-async def root(request: Request):
-    return RedirectResponse(url="/ui")
+# on the root endpoint, return the ui if there is nothing after the slash else return the static file
+@app.get("/{filename}")
+async def media(request: Request, filename: str):
+    log.info(f"root request {request.headers}")
+    # if the filename contains a dot, it is a file, return the file
+    if "." in filename:
+        try:
+            if os.path.exists(f"{STORAGE_FOLDER}{filename}"):
+                # update the last seen time and increment the view count in the database
+                db_file = db.collection("files").document(filename).get().to_dict()
+                db_file["last_seen"] = firestore.SERVER_TIMESTAMP
+                db_file["views"] = db_file["views"] + 1
+                return FileResponse(f"{STORAGE_FOLDER}{filename}")
+            else:
+                return RedirectResponse(url=f"/ui/{filename}")
+        except:
+            return RedirectResponse(url="/ui/home")
+    else:
+        return RedirectResponse(url=f"/ui/{filename}")
 
-
-@app.get("/ui", include_in_schema=False)
-async def root(request: Request):
-    log.info(f"ui request {request.headers}")
+@app.get("/ui/home", include_in_schema=False)
+async def home(request: Request):
+    log.info(f"home request {request.headers}")
     # return static html file
     return HTMLResponse(content=open("./src/static/index.html", "r").read())
 
 
 @app.get("/ui/all", include_in_schema=False)
-async def root(request: Request):
-    log.info(f"all ui request {request.headers}")
+async def all(request: Request):
+    log.info(f"all page request {request.headers}")
     # return static html file
     return HTMLResponse(content=open("./src/static/all.html", "r").read())
 
 
 @app.get("/ui/login", include_in_schema=False)
 async def login(request: Request):
-    log.info(f"login ui request {request.headers}")
+    log.info(f"login request {request.headers}")
     cookie = request.cookies.get("session")
     if cookie is not None:
         try:
             auth.verify_session_cookie(cookie, check_revoked=True)
-            return RedirectResponse(url="/ui")
+            return RedirectResponse(url="/home")
         except:
             pass
     return HTMLResponse(content=open("./src/static/login.html", "r").read())
 
 
-@app.post("/login", include_in_schema=False)
+@app.post("/api/login", include_in_schema=False)
 async def login(request: Request):
     log.info(f"login request {request.headers}")
     req_json = await request.json()
@@ -202,7 +218,7 @@ async def login(request: Request):
         )
 
 
-@app.get("/ping", include_in_schema=False)
+@app.get("/api/ping", include_in_schema=False)
 async def validate(request: Request):
     log.info(f"ping request {request.headers}")
     try:
@@ -219,7 +235,7 @@ async def validate(request: Request):
         )
 
 
-@app.post("/upload")
+@app.post("/api/upload")
 async def upload(request: Request):
     log.info(f"upload request {request.headers}")
     should_optimize = True
@@ -243,18 +259,12 @@ async def upload(request: Request):
             file[key] = datetime.datetime.strptime(
                 _file[key], "%a %b %d %Y %H:%M:%S GMT%z (%Z)"
             )
-        
     if file is None or file["size"] == 0:
         log.warning(f"upload request: Missing file")
         return HTTPException(detail={"message": "Error! Missing File"}, status_code=400)
     user_ip = request.headers.get("cf-connecting-ip")
     if user_ip is None:
         log.warning(f"upload request: Missing user ip")
-        
-        # return HTTPException(
-        #     detail={"message": "Error! Missing User IP", "headers": request.headers},
-        #     status_code=400,
-        # )
     name = str(uuid.uuid4())[:8]
     ext = file["name"].split(".")[-1]
     image = ImageModel(
@@ -316,10 +326,9 @@ async def upload(request: Request):
         #     f"upload request: Optimized image size: {img_byte_arr.getbuffer().nbytes}"
         # )
         # upload the image
-        blob = bucket.blob(image.name)
-        signed_url = blob.generate_signed_url(datetime.timedelta(seconds=300), method="PUT")
-        print(signed_url)
-        log.info(f"Signed URL created")
+        with open(f"{STORAGE_FOLDER}{image.name}", "wb") as f:
+            f.write(file["file"].file.read())
+        signed_url = IMAGES_ENPOINT + image.name
         image.optimized = True
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
@@ -335,10 +344,9 @@ async def upload(request: Request):
     else:
         # upload the image
         log.info(f"upload request: Not optimizing file")
-        blob = bucket.blob(image.name)
-        blob.upload_from_string(
-            file["file"].file.read(), content_type=file["file"].content_type
-        )
+        with open(f"{STORAGE_FOLDER}{image.name}", "wb") as f:
+            f.write(file["file"].file.read())
+        signed_url = IMAGES_ENPOINT + image.name
         log.info(f"upload request: Uploaded image to bucket")
         # update the database
         db.collection("files").document(image.name).set(image.to_dict())
@@ -353,7 +361,7 @@ async def upload(request: Request):
         )
 
 
-app.post("/confirm/{filename}")
+app.post("/api/confirm/{filename}")
 async def confirm_file(filename: str, request: Request):
     log.info(f"confirm request {request.headers}")
     try:
@@ -370,25 +378,26 @@ async def confirm_file(filename: str, request: Request):
         )
     except:
         log.warning(f"confirm request: Server Error")
-        return JSONResponse(
-            content={"message": "Server Error"}, status_code=400
-        )
+        return JSONResponse(content={"message": "Server Error"}, status_code=400)
+
 
 # delete file
-@app.delete("/delete/{filename}")
+@app.delete("/api/delete/{filename}")
 async def delete_file(filename: str, request: Request):
     log.info(f"delete request {request.headers}")
     try:
         cookie = request.cookies.get("session")
         decoded_claims = auth.verify_session_cookie(cookie, check_revoked=True)
         log.info(f"delete request: Valid session cookie: {decoded_claims}")
-        blob = bucket.blob(filename)
-        if blob is None:
+        blob = os.path.abspath(f"{STORAGE_FOLDER}{filename}")
+        
+        if not os.path.exists(blob):
             log.warning(f"delete request: File does not exist IN STORAGE, {filename}")
             return JSONResponse(
                 content={"message": "File does not exist"}, status_code=400
             )
-        blob.delete()
+        # delete file from storage
+        os.remove(blob)
         log.info(f"delete request: Deleted file from bucket")
 
         db_file = db.collection("files").document(filename).get()
@@ -410,13 +419,13 @@ async def delete_file(filename: str, request: Request):
         )
 
 
-@app.get("/all")
+@app.get("/api/all")
 async def get_all(request: Request):
     log.info(f"get all request {request.headers}")
     try:
         files_list = []
         files = db.collection("files").get()
-        
+
         if len(files) > 100:
             log.error(f"!!!!!!!!!!Too many files - {len(files)} !!!!!!!!!!!")
 
@@ -425,7 +434,7 @@ async def get_all(request: Request):
             files = sorted(
                 files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True
             )
-            
+
         except:
             log.warning(f"Failed to sort files: \n{[f.to_dict() for f in files]}\n")
             pass
@@ -444,9 +453,11 @@ async def get_all(request: Request):
     except Exception as e:
         return HTTPException(detail={"message": str(e)}, status_code=401)
 
-@app.get("/random")
+
+@app.get("/api/random")
 def get_random_image(request: Request):
     import random
+
     log.info(f"get random request {request.headers}")
     try:
         files = db.collection("files").get()

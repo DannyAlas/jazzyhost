@@ -36,7 +36,7 @@
             </div>
         </div>
         <div class="text-right fixed-bottom mb-5 mr-5">
-            <a href="/ui/all" class="btn shadow-sm btn-outline-secondary">all</a>
+            <a href="/all" class="btn shadow-sm btn-outline-secondary">all</a>
         </div>
 
     </div>
@@ -127,7 +127,7 @@
                 progressBar.style.visibility = 'hidden'
                 return
             }
-            var url = '/upload'
+            var url = '/api/upload'
             var xhr = new XMLHttpRequest()
             var formData = new FormData()
             xhr.open('POST', url, true)
@@ -155,6 +155,7 @@
                     if (xhr.status === 200) {
                         // get the url from the response
                         var url = JSON.parse(xhr.responseText).signed_url
+                        console.log(url)
 
                         // PUT request to upload the file to S3
                         var xhr2 = new XMLHttpRequest()
@@ -166,9 +167,9 @@
                             if (xhr2.status === 200) {
                                 // send a post request to the /confirm/filename endpoint
                                 var xhr3 = new XMLHttpRequest()
-                                xhr3.open('POST', '/confirm/' + file.name, true)
+                                xhr3.open('POST', '/api/confirm/' + file.name, true)
                                 xhr3.send()
-                                xhr2.onload = function() {
+                                xhr3.onload = function() {
                                     // check if the request was not successful
                                     if (xhr3.status === 200) {
                                         // open the url in a new tab but don't focus on it
@@ -202,6 +203,7 @@
         var name = file.name
         var size = file.size
         var type = file.type
+        var file = file
         var lastModified = file.lastModified
         var lastModifiedDate = file.lastModifiedDate
         var webkitRelativePath = file.webkitRelativePath
@@ -209,6 +211,7 @@
         formData.append('name', name)
         formData.append('size', size)
         formData.append('type', type)
+        formData.append('file', file)
         formData.append('lastModified', lastModified)
         formData.append('lastModifiedDate', lastModifiedDate)
         formData.append('webkitRelativePath', webkitRelativePath)

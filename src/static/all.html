@@ -84,7 +84,7 @@
                     </div>
                 </div>
                 <div class="position-fixed bottom-0 end-0 p-5">
-                    <a href="/ui" class="btn shadow-sm btn-outline-secondary">Upload</a>
+                    <a href="/home" class="btn shadow-sm btn-outline-secondary">Upload</a>
                 </div>
             </div>
         </div>
@@ -103,7 +103,7 @@
 
         // get request to the api/all
         var xhr = new XMLHttpRequest()
-        xhr.open('GET', '/all', true)
+        xhr.open('GET', '/api/all', true)
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
         xhr.onload = function() {
             if (xhr.status === 200) {
@@ -197,7 +197,7 @@
                 if (document.cookie.includes("session=") && innerText === "Delete") {
                     // send a delete request to the api
                     var xhr = new XMLHttpRequest()
-                    xhr.open('DELETE', `/delete/${imgName}`, true)
+                    xhr.open('DELETE', `/api/delete/${imgName}`, true)
                     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
                     xhr.onload = function() {
                         if (xhr.status === 200) {
