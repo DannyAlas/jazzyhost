@@ -120,12 +120,32 @@
         }
 
         function uploadFile(file, i) {
-            // assert file has a valid extension
-            var ext = file.name.split('.').pop()
-            if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'gif' && ext != 'webp' && ext != 'svg' && ext != 'webm' && ext != 'mp4' && ext != 'mov' && ext != 'avi' && ext != 'mpg' && ext != 'mpeg' && ext != 'wmv' && ext != 'flv' && ext != 'mkv' && ext != 'mp3' && ext != 'wav' && ext != 'aac' && ext != 'ogg' && ext != 'zip' ) {
-                alert('Invalid file type. Please upload an image.')
-                progressBar.style.visibility = 'hidden'
-                return
+            // check logged in
+            var xhr0 = new XMLHttpRequest()
+            xhr0.open('GET', '/api/loggedin', true)
+            xhr0.send()
+            xhr0.onload = function() {
+                // check if the request was not successful it will return a JSON object with content{logged_in: true/false}
+                if (xhr0.status === 200) {
+                    // check if the user is logged in
+                    if (JSON.parse(xhr0.responseText).logged_in == false) {
+                        // assert file is not too large
+                        if (file.size > 10000000) {
+                            alert('File is too large. Please upload a file smaller than 10MB.')
+                            progressBar.style.visibility = 'hidden'
+                            return
+                        }
+                        // assert file has a valid extension
+                        var ext = file.name.split('.').pop()
+                        if (ext != 'jpg' && ext != 'jpeg' && ext != 'png' && ext != 'gif' && ext != 'webp' && ext != 'svg' && ext != 'webm' && ext != 'mp4' && ext != 'mov' && ext != 'avi' && ext != 'mpg' && ext != 'mpeg' && ext != 'wmv' && ext != 'flv' && ext != 'mkv' && ext != 'mp3' && ext != 'wav' && ext != 'aac' && ext != 'ogg' && ext != 'zip' ) {
+                            alert('Invalid file type. Please upload an image.')
+                            progressBar.style.visibility = 'hidden'
+                            return
+                        }
+                    }
+                } else {
+                    console.log(xhr0.responseText)
+                }
             }
             var url = '/api/upload'
             var xhr = new XMLHttpRequest()
@@ -155,8 +175,7 @@
                     if (xhr.status === 200) {
                         // get the url from the response
                         var url = JSON.parse(xhr.responseText).signed_url
-                        console.log(url)
-
+                        var file_params = JSON.parse(xhr.responseText).image_params
                         // PUT request to upload the file to S3
                         var xhr2 = new XMLHttpRequest()
                         xhr2.open('PUT', url, true)
@@ -167,16 +186,16 @@
                             if (xhr2.status === 200) {
                                 // send a post request to the /confirm/filename endpoint
                                 var xhr3 = new XMLHttpRequest()
-                                xhr3.open('POST', '/api/confirm/' + file.name, true)
+                                xhr3.open('POST', '/api/confirm/' + file_params.name, true)
                                 xhr3.send()
                                 xhr3.onload = function() {
                                     // check if the request was not successful
                                     if (xhr3.status === 200) {
                                         // open the url in a new tab but don't focus on it
-                                        window.open(url, '_blank')
+                                        window.open(file_params.url, '_blank')
                                         // redirect the current ui/all page and focus on it
                                         window.focus()
-                                        window.location.href = '/ui/all'
+                                        window.location.href = '/all'
                                         
                                         progressBar.style.visibility = 'hidden'
                                     } else {

@@ -144,7 +144,6 @@ app.mount("/public", StaticFiles(directory="./src/public"), name="public")
 
 ###############################################################################
 
-
 def logged_in(request: Request) -> bool:
     """Helper function to check if user is logged in
 
@@ -165,6 +164,15 @@ def logged_in(request: Request) -> bool:
     except Exception as e:
         log.warning(f"logged_in failed: {e}")
         return False
+
+@app.get("/api/logged_in", include_in_schema=False)
+def api_logged_in(request: Request):
+    log.info(f"logged_in request {request.headers}")
+    is_logged_in = logged_in(request)
+    if is_logged_in:
+        return JSONResponse(content={"logged_in": True}, status_code=200)
+    else:
+        return JSONResponse(content={"logged_in": False}, status_code=200)
 
 @app.post("/api/login", include_in_schema=False)
 async def login(request: Request):
@@ -206,6 +214,12 @@ async def login(request: Request):
             detail={"message": "There was an error logging in"}, status_code=400
         )
 
+@app.get("/", include_in_schema=False)
+async def to_home(request: Request):
+    log.info(f"home request {request.headers}")
+    # redirect to home page
+    return RedirectResponse(url="/home")
+
 @app.get("/home", include_in_schema=False)
 async def home(request: Request):
     log.info(f"home request {request.headers}")
@@ -227,10 +241,55 @@ async def login(request: Request):
     if cookie is not None:
         try:
             auth.verify_session_cookie(cookie, check_revoked=True)
-            return RedirectResponse(url="/ui/home")
+            return RedirectResponse(url="/home")
         except:
             pass
     return HTMLResponse(content=open("./src/static/login.html", "r").read())
+
+@app.get("/api/all", include_in_schema=False)
+async def all_files(request: Request):
+    log.info(f"get all request {request.headers}")
+    try:
+        files_list = []
+        files = db.collection("files").get()
+        
+        if len(files) > 100:
+            log.error(f"!!!!!!!!!!Too many files - {len(files)} !!!!!!!!!!!")
+
+        # sort files by upload date
+        try:
+            files = sorted(
+                files, key=lambda x: x.to_dict()["uploaded_at"], reverse=True
+            )
+            
+        except:
+            log.warning(f"Failed to sort files: \n{[f.to_dict() for f in files]}\n")
+            pass
+        for f in files:
+            try:
+                # serialize the file object DateTime object
+                f_dict = f.to_dict()
+                for key, value in f_dict.items():
+                    if isinstance(value, datetime.datetime):
+                        f_dict[key] = value.isoformat()
+                files_list.append(f_dict)
+            except:
+                log.warning(f"Failed to get url for file: {f.to_dict()}")
+
+        return JSONResponse(content={"files": files_list}, status_code=200)
+    except Exception as e:
+        return HTTPException(detail={"message": str(e)}, status_code=401)
+
+@app.post("/api/confirm/{filename}")
+async def confirm_file(filename: str, request: Request):
+    log.info(f"confirm request {request.headers}")
+    for file in MinioClient.list_objects(bucket, prefix="host/"):
+        if file.object_name == "host/" + filename:
+            db.collection("files").document(filename).update({"confirmed": True})
+            log.info(f"confirm request: {filename} confirmed")
+            return JSONResponse(
+                content={"message": "Successfully confirmed file"}, status_code=200
+            ) 
 
 @app.post("/api/upload")
 async def upload(request: Request):
@@ -270,7 +329,7 @@ async def upload(request: Request):
     image = ImageModel(
         name=name + "." + ext,
         extension=ext,
-        url=f"{IMAGES_ENPOINT}{name}",
+        url=f"{IMAGES_ENPOINT}{name}.{ext}",
         user_ip=user_ip,
         user_uid=None,
         optimized=False,
@@ -306,6 +365,7 @@ async def upload(request: Request):
             )
 
     signed_url = MinioClient.presigned_put_object(bucket_name=bucket, object_name="host/"+image.name, expires=datetime.timedelta(hours=1))
+    db.collection("files").document(image.name).set(image.to_dict())
     return JSONResponse(
         content={
             "message": "Successfully uploaded file",
@@ -315,28 +375,30 @@ async def upload(request: Request):
         status_code=200,
     )
 
-
-app.post("/api/confirm/{filename}")
-async def confirm_file(filename: str, request: Request):
-    log.info(f"confirm request {request.headers}")
-    for file in MinioClient.list_objects(bucket, prefix="host/"):
-        if file.object_name == "host/" + filename:
-            print("public link", MinioClient.presigned_get_object(bucket, file.object_name, expires=datetime.timedelta(days=1)))
-            # check that the metadata is public
-            if not file.metadata["x-amz-meta-public"] == "true":
-                file.metadata["x-amz-meta-public"] = "true"
-                MinioClient.copy_object(
-                    bucket,
-                    file.object_name,
-                    bucket,
-                    file.object_name,
-                    metadata=file.metadata,
-                )
-
-            log.info(f"confirm request: {filename} confirmed")
-            return JSONResponse(
-                content={"message": "Successfully confirmed file"}, status_code=200
+@app.delete("/api/delete/{filename}")
+async def delete_file(filename: str, request: Request):
+    log.info(f"delete request {request.headers}")
+    try:
+        if not logged_in(request):
+            return HTTPException(
+                detail={"message": "Error! Not logged in"}, status_code=400
             )
-
-
-    
+        # check if file exists in database
+        db_file = db.collection("files").document(filename).get()
+        # delete file from storage
+        try:
+            MinioClient.remove_object(bucket, "host/" + db_file.to_dict()["name"]+db_file.to_dict()["extension"])
+            db.collection("files").document(filename).delete()
+        except:
+            log.warning(f"delete request: Failed to delete file from storage")
+            return HTTPException(
+                detail={"message": "Error! Failed to delete file from storage"}, status_code=400
+            )
+        return JSONResponse(
+            content={"message": "Successfully deleted file"}, status_code=200
+        )
+    except Exception as e:
+        log.warning(f"delete request: {e}")
+        return JSONResponse(
+            content={"message": "There was an error deleting the file"}, status_code=400
+        )
