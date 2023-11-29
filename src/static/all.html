@@ -114,20 +114,20 @@
                 for (var i = 0; i < files.length; i++) {
                     // if the file object extension is an image, add it to the filesHTML string as an image
                     if (files[i].extension == "png" || files[i].extension == "jpg" || files[i].extension == "jpeg" || files[i].extension == "gif") {
-                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..." loading="lazy"></div></div></div>'
                     } else if (files[i].extension == "mp4" || files[i].extension == "webm" || files[i].extension == "ogg" || files[i].extension == "mov" || files[i].extension == "avi" || files[i].extension == "wmv" || files[i].extension == "flv" || files[i].extension == "mkv") {
                         // if the file object extension is a video, add it to the filesHTML string as a video
                         // make the card body a video player but make sure it doesn't get larger than 100% width
-                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><video controls style="max-width: 100%;"><source src="' + files[i].url + '" type="video/mp4"></video></div></div></div>'
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><video controls style="max-width: 100%;"><source src="' + files[i].url + '" type="video/mp4" loading="lazy"></video></div></div></div>'
 
                     } else if (files[i].extension == "mp3" || files[i].extension == "wav") {
                         // if the file object extension is an audio file, add it to the filesHTML string as an audio file
                         // make sure to center the audio player
-                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><audio controls><source src="' + files[i].url + '" type="audio/mpeg"></audio></div></div></div>'
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><audio controls><source src="' + files[i].url + '" type="audio/mpeg" loading="lazy"></audio></div></div></div>'
                         
                     } else if (files[i].extension == "webp" || files[i].extension == "svg") {
                         // if the file object extension is a webp or svg, add it to the filesHTML string as an image
-                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..."></div></div></div>'
+                        filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><img src="' + files[i].url + '" class="card-img-top" alt="..." loading="lazy"></div></div></div>'
                     } else {
                         // if the file object extension is a zip check the thumbnail url
                         if (files[i].thumbnail == null) {
@@ -135,7 +135,7 @@
                             filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link">' + files[i].name + '</a></div></div></div>'
                         } else {
                             // if the thumbnail url is not null, add it to the filesHTML string as an image but make it a link to the file
-                            filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link"><img src="' + files[i].thumbnail + '" class="card-img-top" alt="..."></a></div></div></div>'
+                            filesHTML += '<div class="col-auto mb-3"><div class="card"><div class="card-body"><a href="' + files[i].url + '" class="card-link"><img src="' + files[i].thumbnail + '" class="card-img-top" alt="..." loading="lazy"></a></div></div></div>'
                         }
                     } 
                 }
