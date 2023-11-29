@@ -122,7 +122,7 @@
         function uploadFile(file, i) {
             // check logged in
             var xhr0 = new XMLHttpRequest()
-            xhr0.open('GET', '/api/loggedin', true)
+            xhr0.open('GET', '/api/logged_in', true)
             xhr0.send()
             xhr0.onload = function() {
                 // check if the request was not successful it will return a JSON object with content{logged_in: true/false}
