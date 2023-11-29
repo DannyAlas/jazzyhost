@@ -2,26 +2,22 @@ import datetime
 import json
 import logging
 import os
-import re
 import sys
 import uuid
 
-import axiom
+# import axiom
 import requests
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from firebase_admin import auth, credentials, initialize_app, storage
-from google.cloud import firestore
-from PIL import Image
+from firebase_admin import auth, credentials, initialize_app, firestore
+# from PIL import Image
 from minio import Minio
-from minio.error import S3Error
 
-
-from .logging import AxiomHandler
+# from .logging import AxiomHandler
 
 load_dotenv()
 
@@ -85,14 +81,14 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-axiom_token = os.getenv("AXIOM_API_TOKEN")
-if axiom_token is None:
-    raise ValueError("AXIOM_API_TOKEN not set")
-ax_client = axiom.Client(
-    token=os.getenv("AXIOM_API_TOKEN"), org_id=os.getenv("AXIOM_ORG_ID")
-)
-axiom_handler = AxiomHandler(ax_client, "logs", level=logging.DEBUG, interval=1)
-log.addHandler(axiom_handler)
+# axiom_token = os.getenv("AXIOM_API_TOKEN")
+# if axiom_token is None:
+#     raise ValueError("AXIOM_API_TOKEN not set")
+# ax_client = axiom.Client(
+#     token=os.getenv("AXIOM_API_TOKEN"), org_id=os.getenv("AXIOM_ORG_ID")
+# )
+# axiom_handler = AxiomHandler(ax_client, "logs", level=logging.DEBUG, interval=1)
+# log.addHandler(axiom_handler)
 
 def exception_handler(exeption_type, exception, traceback):
     # set the message to me the last lines of the traceback
